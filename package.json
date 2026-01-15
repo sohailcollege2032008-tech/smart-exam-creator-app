@@ -1,0 +1,41 @@
+{
+  "name": "smart-exam-creator",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --webpack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@distube/ytdl-core": "^4.16.12",
+    "@google/generative-ai": "^0.24.1",
+    "agent-base": "^7.1.4",
+    "clsx": "^2.1.1",
+    "file-saver": "^2.0.5",
+    "jszip": "^3.10.1",
+    "lucide-react": "^0.560.0",
+    "next": "16.0.9",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^4.4.168",
+    "react": "19.2.1",
+    "react-dom": "19.2.1",
+    "react-dropzone": "^14.3.8",
+    "sql.js": "^1.13.0",
+    "tailwind-merge": "^3.4.0",
+    "youtube-transcript": "^1.2.1",
+    "yt-dlp-exec": "^1.0.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/file-saver": "^2.0.7",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.0.9",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

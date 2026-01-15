@@ -1,0 +1,676 @@
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Quiz - Interactive Quiz</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+          darkMode: 'class',
+        }
+    </script>
+    <style>
+        body { font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        .question-text { white-space: pre-wrap; }
+        
+        /* Light Mode Specifics Override */
+        .option-correct { border-color: #10B981 !important; background-color: #F0FDF4 !important; color: #064E3B !important; }
+        .option-incorrect { border-color: #EF4444 !important; background-color: #FEF2F2 !important; color: #7F1D1D !important; }
+        .option-neutral { border-color: #E5E7EB; background-color: #F9FAFB; }
+        
+        /* Exam Selection Style (Blue/Neutral) */
+        .option-exam-selected { 
+            border-color: #3B82F6 !important; 
+            background-color: #EFF6FF !important; 
+            color: #1E40AF !important; 
+        }
+        
+        .option > div { margin-right: 0.75rem; }
+        
+        /* Dark Mode Overrides */
+        html.dark .option-correct { background-color: #064e3b !important; color: #ecfdf5 !important; border-color: #059669 !important; }
+        html.dark .option-incorrect { background-color: #7f1d1d !important; color: #fef2f2 !important; border-color: #dc2626 !important; }
+        html.dark .option-neutral { border-color: #374151; background-color: #1f2937; }
+        
+        html.dark .option-exam-selected {
+            background-color: #1e3a8a !important; 
+            color: #bfdbfe !important; 
+            border-color: #60a5fa !important;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 transition-colors duration-300">
+    <header class="bg-white dark:bg-gray-800 shadow-md transition-colors duration-300 sticky top-0 z-10">
+        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center relative">
+            
+            <!-- Logo Right -->
+            <div class="w-8"></div>
+            
+            <div class="text-center mx-2 flex-1">
+                <h1 class="text-lg sm:text-2xl font-bold text-gray-800 dark:text-white">New Quiz</h1>
+            </div>
+
+             <!-- Logo Left -->
+            <div class="w-8"></div>
+
+            <!-- Dark Mode Toggle -->
+            <button id="theme-toggle" class="absolute left-4 top-1/2 transform -translate-y-1/2 p-2 rounded-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-yellow-300 focus:outline-none hover:bg-gray-300 dark:hover:bg-gray-600 transition">
+                <svg id="theme-icon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <!-- Icon content loaded by JS -->
+                </svg>
+            </button>
+        </div>
+    </header>
+    
+    <main class="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
+        
+        <!-- EXAM CONTROLS -->
+        <div id="exam-controls" class="flex justify-center mb-6">
+            <button id="start-exam-btn" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-full shadow transition flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                بدء وضع الامتحان (Start Exam Mode)
+            </button>
+            
+            <div id="timer-display" class="hidden px-6 py-2 bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-200 font-mono font-bold text-xl rounded-full border border-red-200 dark:border-red-700 flex items-center animate-pulse">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span id="timer-val">00:00</span>
+            </div>
+        </div>
+
+        <div id="quiz-container"></div>
+        <div class="mt-8 text-center"><button id="finish-quiz-btn" class="px-8 py-3 bg-green-600 text-white font-semibold rounded-lg shadow-lg hover:bg-green-700 transition duration-200">إنهاء وتصحيح</button></div>
+        
+        <div id="results-container" class="hidden mt-8 p-6 bg-white dark:bg-gray-800 rounded-lg shadow-xl text-center transition-colors duration-300">
+            <h2 class="text-2xl font-bold text-gray-800 dark:text-white mb-4">النتيجة النهائية</h2>
+            <div id="score-display" class="text-6xl font-bold text-blue-600 dark:text-blue-400 mb-2">0%</div>
+            <div id="score-details" class="text-lg text-gray-600 dark:text-gray-300"></div>
+            
+            <!-- Export Buttons -->
+            <div class="mt-6 flex flex-col sm:flex-row justify-center space-y-3 sm:space-y-0 sm:space-x-3 sm:space-x-reverse">
+                <button id="export-html-btn" class="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-medium rounded-lg flex items-center justify-center transition">
+                    <svg class="w-5 h-5 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    تحميل تقرير الامتحان (HTML)
+                </button>
+                <button id="export-csv-btn" class="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-medium rounded-lg flex items-center justify-center transition">
+                    <svg class="w-5 h-5 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    تصدير الأخطاء للمراجعة (Anki CSV)
+                </button>
+            </div>
+
+            <button id="reset-quiz-btn" class="mt-6 px-6 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-medium rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600">إعادة الاختبار</button>
+        </div>
+    </main>
+    <script type="application/json" id="quiz-data">[{"number":"1","type":"MCQ","question":"According to the principles of pathology, which of the following best describes the \"precipitating causes\" of a disease?","options":["A. Factors that facilitate the occurrence of the disease.","B. The series of changes leading to the full picture of the disease.","C. The direct causes responsible for the disease.","D. The gross appearance of diseased tissue by naked eye.","E. The microscopic changes observed under a microscope."],"correctAnswer":"C","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 3 (\"Etiology(causes):\")","explanations":{"E: إجابة خاطئة. يصف هذا الخيار الـ \"Microscopic examination\"، والذي يتضمن ملاحظة الـ diseased tissue بواسطة الـ microscopy، بما في ذلك تقنيات الـ staining المختلفة.":"Topic Summary: الـ Etiology، أو أسباب الـ disease، هو مفهوم أساسي في الـ pathology. يتم تصنيفه إلى predisposing causes (أسباب مؤهبة)، والتي تسهل حدوث الـ disease، و precipitating causes (أسباب مباشرة)، والتي هي الـ triggers المباشرة. فهم هذه الفروق أمر بالغ الأهمية لتحديد أصول عمليات الـ disease وتمييزها عن آليات الـ disease (pathogenesis) أو التغيرات الملحوظة (morphologic changes)."}},{"number":"2","type":"MCQ","question":"A pathologist is examining a diseased organ and notes its enlarged size, yellowish color, and soft consistency using only their naked eye. This method of examination is referred to as:","options":["A. Microscopic examination","B. Electron microscopy (EM)","C. Gross examination","D. Immunohistochemical staining","E. Cytogenetic analysis"],"correctAnswer":"C","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 3 (\"Morphologic changes: • Gross examination:\")","explanations":{"E: إجابة خاطئة. الـ Cytogenetic analysis، بما في ذلك الـ karyotyping والـ FISH، هو تقنية molecular، وليس طريقة gross examination.":"Topic Summary: الـ Morphologic changes هي تغيرات ملحوظة في الـ diseased tissues، وتصنف إلى gross و microscopic examinations. يتضمن الـ Gross examination الفحص البصري بالعين المجردة، مع التركيز على الـ features مثل الـ size والـ shape والـ color والـ consistency للأعضاء. على العكس، يستخدم الـ Microscopic examination تقنيات الـ microscopy والـ stains المختلفة للكشف عن الـ cellular والـ subcellular details. كلاهما ضروري لـ pathological diagnosis شامل."}},{"number":"3","type":"MCQ","question":"A patient reports experiencing severe chest pain and difficulty breathing. Upon examination, the physician notes an elevated temperature and an increased pulse rate. According to the provided text, the chest pain and difficulty breathing are examples of a(n) ______, while the elevated temperature and increased pulse rate are examples of a(n) ______.","options":["A. Sign; Symptom","B. Symptom; Sign","C. Prognosis; Sequelae","D. Complication; Prognosis","E. Sequelae; Sign"],"correctAnswer":"B","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 3 (\"Clinical terms: • Symptom:\") و صفحة 4 (\"• Sign:\")","explanations":{"E: إجابة خاطئة. الـ Sequelae هي الـ residual effects بعد الـ recovery، وبينما تم وضع \"sign\" بشكل صحيح للـ blank الثاني، فإن الـ term الأول غير صحيح.":"Topic Summary: الـ Clinical terms ضرورية لوصف الـ disease manifestations. الـ \"symptom\" هو شكوى ذاتية يبلغ عنها الـ patient، مثل الـ pain أو الـ dizziness. الـ \"sign\" هو manifestation موضوعي يلاحظه الـ clinician، مثل الـ elevated temperature أو الـ dilated pupil. التمييز بين هذه الـ terms أمر بالغ الأهمية لـ patient assessment والـ diagnosis الدقيق."}},{"number":"4","type":"MCQ","question":"A patient has been diagnosed with diabetes mellitus. Despite this diagnosis, they are able to perform their necessary daily activities and do not perceive themselves as unwell. According to the text, this patient is in a state of:","options":["A. Health","B. Disease but not illness","C. Illness but not disease","D. Acute disease","E. Clinical disease"],"correctAnswer":"B","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 4 (\"Disease:\", \"Illness:\", \"For example:\")","explanations":{"E: إجابة خاطئة. تُعرّف الـ \"Clinical disease\" بأنها \"manifested by signs and symptoms.\" بينما الـ diabetes لديه signs و symptoms، يشدد السيناريو على قدرة الـ patient على أداء الـ daily activities وعدم شعوره بـ unwellness، مما يتماشى مع مثال \"disease but not ill\".":"Topic Summary: يميز النص بين الـ \"disease\" والـ \"illness\". يحدث الـ \"disease\" عندما لا يتم الحفاظ على الـ homeostasis، مما يمثل حالة pathological موضوعية. أما الـ \"illness\"، فيشير إلى حالة ذاتية حيث لا يعتبر الشخص نفسه بصحة جيدة، وغالباً ما يكون ذلك بسبب الـ subjective symptoms. من الممكن أن يكون لدى الشخص disease (مثل الـ diabetes) دون الشعور بالـ illness، خاصة إذا كان الجسم قد تكيف ويمكن أداء الـ daily activities."}},{"number":"5","type":"MCQ","question":"During embryonic development, which of the following tissues or organs is derived from the mesenchyme, a subdivision of the mesoderm?","options":["A. Skin and hair","B. Epithelial lining of the gastro-intestinal tract","C. Cartilage and bone","D. Sweat glands and peripheral nerves","E. Thyroid and parathyroid glands"],"correctAnswer":"C","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 5 (\"The division of fertilized ovum results in the formation of three gem layers:\")","explanations":{"E: إجابة خاطئة. يتم إدراج الـ Thyroid والـ parathyroid glands كـ derivatives من الـ Endoderm.":"Topic Summary: يتطور جسم الإنسان من ثلاث germ layers أساسية: الـ ectoderm والـ mesoderm والـ endoderm. كل طبقة تنشأ منها tissues و organs محددة. الـ mesoderm، وخاصة الـ mesenchymal subdivision الخاص بها، أمر بالغ الأهمية لتكوين الـ connective tissues والـ musculoskeletal structures، والعديد من الـ organs مثل الـ kidneys والـ gonads. فهم هذه الـ developmental origins أساسي لـ pathology، حيث يساعد في تفسير الـ congenital anomalies والـ tissue-specific diseases."}},{"number":"6","type":"MCQ","question":"In a cell experiencing impaired energy production, which organelle, responsible for containing respiratory enzymes and serving as the main source of energy production, is most likely affected?","options":["A. Nucleus","B. Endoplasmic reticulum","C. Lysosomes","D. Mitochondria","E. Cell membrane"],"correctAnswer":"D","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 6 (\"Cellular structures of particular importance: 2. The cytoplasm: ... a- Mitochondria:\")","explanations":{"E: إجابة خاطئة. وظائف الـ cell membrane تشمل الـ cell movement والـ phagocytosis والـ cell adhesiveness والـ carrying tissue":"Topic Summary: الـ Mitochondria هي cellular organelles حيوية يشار إليها غالباً باسم \"powerhouses\" للـ cell. تحتوي على الـ respiratory enzymes وهي الـ primary sites لـ energy production من خلال الـ aerobic respiration. يؤدي الـ Dysfunction في الـ mitochondria إلى إعاقة مباشرة لـ cellular energy supply، مما قد يكون له تأثيرات عميقة على الـ cell function والـ survival، كما يظهر في الـ pathological conditions المختلفة."}},{"number":"7","type":"MCQ","question":"A cellular pathology is characterized by an inability to maintain intracellular potassium and an excessive accumulation of sodium and water within the cytoplasm. This dysfunction is most directly related to the impaired function of which cellular component?","options":["A. Nucleus","B. Lysosomes","C. Endoplasmic reticulum","D. Mitochondria","E. Cell membrane (sodium pump)"],"correctAnswer":"E","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 6 (\"d- Cell membrane: the functions of which include:\")","explanations":{"E: إجابة صحيحة. يذكر النص أن إحدى وظائف الـ \"Cell membrane\" هي \"Exchange of water and solutions with the extra":"Topic Summary: الـ Cell membrane هو cellular structure حاسم وله وظائف متعددة، بما في ذلك تنظيم مرور الـ substances. وظيفة رئيسية هي الحفاظ على الـ ion homeostasis من خلال آليات مثل الـ sodium pump، الذي ينقل الـ sodium بنشاط خارج الـ cell والـ potassium إلى داخل الـ cell. يؤدي الـ Dysfunction في هذا الـ pump إلى اختلالات في الـ intracellular ion والـ water concentrations، وهي سمة شائعة في أشكال مختلفة من الـ cell injury."}},{"number":"8","type":"MCQ","question":"A patient's immune system is actively engulfing and clearing bacterial pathogens from an infected wound. This protective mechanism, involving phagocytic cells, is known as:","options":["A. Mechanical barriers","B. Chemical protection","C. Reflex mechanisms","D. Phagocytosis","E. Specific immune response"],"correctAnswer":"D","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 7 (\"Protective mechanisms of the living body 4. Phagocytosis:\")","explanations":{"E: إجابة خاطئة. الـ Specific immune response هو category أوسع لـ protective mechanisms، وبينما الـ phagocytosis جزء من الـ immunity، فإن الـ action المحدد لـ engulfment يسمى phagocytosis.":"Topic Summary: يستخدم الجسم العديد من الـ protective mechanisms ضد الـ irritants والـ pathogens. الـ Phagocytosis هو innate immune response حاسم حيث تقوم الـ specialized phagocytic cells بـ engulf و internalize الـ foreign particles والـ bacteria والـ viruses والـ cellular debris. هذه العملية ضرورية لـ clearing infections والحفاظ على الـ tissue homeostasis، مما يميزها عن الـ physical barriers أو الـ chemical defenses أو الـ reflex actions."}},{"number":"9","type":"MCQ","question":"Which of the following is identified as the most common cause of cell injury, characterized by a lack of oxygen and leading to the cell's inability to synthesize sufficient ATP through aerobic oxidation?","options":["A. Infection","B. Chemical causes","C. Hypoxia","D. Physical causes","E. Nutritional causes"],"correctAnswer":"C","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 8 (\"Causes of cell injury 1. Hypoxia:\")","explanations":{"E: إجابة خاطئة. الـ Nutritional causes، مثل الـ inadequate calorie intake أو الـ vitamin deficiency، هي أسباب لـ cell injury ولكنها لا تتناسب مع وصف الـ most common cause المتعلق بـ oxygen lack والـ ATP synthesis.":"Topic Summary: الـ Hypoxia، المعرّف بأنه lack of oxygen، يُقدم على أنه الـ most common cause لـ cell injury. تتضمن آليته الأساسية إعاقة الـ aerobic oxidation، وهو أمر ضروري لـ ATP synthesis. بدون ATP كافٍ، لا تستطيع الـ cells الحفاظ على وظائفها الحيوية، مما يؤدي إلى أشكال مختلفة من الـ cellular damage. هذا يميز الـ hypoxia عن الأسباب الأخرى لـ cell injury من خلال انتشاره وتأثيره الـ metabolic المحدد."}},{"number":"10","type":"MCQ","question":"A patient presents with atherosclerosis, leading to a reduction in blood flow to a specific organ. This condition directly results in insufficient blood supply to the tissues, which is defined as:","options":["A. Hypoxia due to decreased oxygen carrying capacity","B. Infection","C. Ischemia","D. Chemical poisoning","E. Trauma"],"correctAnswer":"C","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 8 (\"Hypoxia is due to either: Ischemia:\")","explanations":{"E: إجابة خاطئة. الـ Trauma هو mechanical cause لـ cell injury، وغير مرتبط بـ blood supply.":"Topic Summary: الـ Ischemia هو cause حاسم لـ cell injury، يتميز بـ insufficient blood supply إلى الـ tissues أو الـ organs. غالباً ما تنشأ هذه الـ condition من الـ vascular pathologies مثل الـ atherosclerosis والـ thrombosis والـ embolism أو الـ cardiopulmonary failure. يؤدي الـ Ischemia، عن طريق الحد من توصيل الـ oxygen والـ nutrient، إلى الـ hypoxia وما يترتب عليه من cellular dysfunction والـ injury."}},{"number":"11","type":"MCQ","question":"A cell is undergoing reversible injury characterized by cellular swelling. Which of the following mechanisms is directly responsible for the influx of sodium and water into the cell and efflux of potassium, leading to this swelling?","options":["A. Increased ATP production","B. Activation of the sodium pump","C. Failure of the sodium pump","D. Rupture of lysosomes","E. Marked mitochondrial dysfunction leading to increased ATP"],"correctAnswer":"C","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 9 (\"Reversible cell injury A. Cellular swelling: Mechanism:\")","explanations":{"E: إجابة خاطئة. الـ Marked mitochondrial dysfunction *يؤدي* إلى الـ decreased ATP، والذي يؤدي بدوره إلى الـ sodium pump failure. ومع ذلك، يسأل السؤال تحديداً عن الـ mechanism *المباشر* لـ ion و water influx/efflux، وهو الـ sodium pump failure. العبارة \"leading to increased ATP\" غير صحيحة أيضاً.":"Topic Summary: الـ Cellular swelling هو hallmark لـ reversible cell injury، وينتج بشكل أساسي عن اضطراب في الـ cellular metabolism يؤدي إلى الـ water accumulation. تتضمن آلية رئيسية الـ decreased ATP production، والذي بدوره يسبب فشل الـ ATP-dependent sodium pump في الـ cell membrane. يؤدي هذا الفشل إلى influx غير متحكم فيه لـ sodium و water إلى الـ cell و efflux لـ potassium، مما يؤدي إلى الـ swelling المميز."}},{"number":"12","type":"MCQ","question":"A biopsy of a patient's liver reveals an accumulation of fat within the hepatocytes. This condition, characterized by the accumulation of fat in non-fatty tissue and considered a form of reversible cell injury, is known as:","options":["A. Hydropic degeneration","B. Cloudy swelling","C. Fatty change","D. Necrosis","E. Pathological calcification"],"correctAnswer":"C","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 9 (\"B. Fatty change Definition:\")","explanations":{"E: إجابة خاطئة. الـ Pathological calcification هو الـ abnormal deposition لـ calcium salts، وليس fat.":"Topic Summary: الـ Fatty change هو form قابل للعكس من الـ cell injury يتميز بـ intracellular accumulation لـ fat في الـ non-fatty tissues. الـ liver هو common site لـ fatty change، وغالباً ما يكون بسبب الـ impaired metabolism لـ fatty acids. تختلف هذه الـ condition عن الأشكال الأخرى لـ intracellular accumulation، مثل الـ water (cellular swelling)، وتعتبر reversible إذا تم إزالة الـ underlying cause."}},{"number":"13","type":"MCQ","question":"During a microscopic examination of a liver biopsy from a patient with fatty change, which characteristic finding would a pathologist expect to observe?","options":["A. Homogenous, eosinophilic cytoplasm with structureless appearance.","B. Small, shrunken, deeply stained nuclei (pyknosis).","C. Hepatocytes with vacuolated cytoplasm and compressed nucleus at one side, resembling \"signet ring cells.\"","D. Complete loss of cellular details.","E. Swelling and fragmentation of collagen fibers."],"correctAnswer":"C","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 10 (\"Fatty change of the liver Pathology: • Microscopic:\")","explanations":{"E: إجابة خاطئة. الـ Swelling and fragmentation of collagen fibers هي characteristic لـ fibrinoid necrosis. يذكر النص: \"Swelling and fragmentation of collagen fibers\" لـ fibrinoid necrosis.":"Topic Summary: الـ Fatty change of the liver، وهو reversible cell injury، له microscopic features مميزة. يلاحظ الـ Pathologists عادة الـ hepatocytes ذات الـ vacuolated cytoplasm، حيث يزيح الـ accumulated fat الـ nucleus إلى جانب واحد، مما يخلق \"signet ring appearance\" مميزاً. هذه الـ microscopic findings حاسمة لـ diagnosing fatty liver وتمييزه عن الأشكال الأخرى من الـ cellular injury أو الـ accumulation."}},{"number":"14","type":"MCQ","question":"A patient experiences localized tissue death in a living organ, characterized by the cessation of energy production and anabolic activities, continued lytic activities by lysosomal enzymes (autolysis), and a subsequent acute inflammatory reaction. This process is defined as:","options":["A. Apoptosis","B. Fatty change","C. Cellular swelling","D. Necrosis","E. Hydropic degeneration"],"correctAnswer":"D","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 11 (\"Irreversible cell injury Necrosis Definition:\")","explanations":{"E: إجابة خاطئة. الـ Hydropic degeneration هو type من الـ reversible cellular swelling، وليس الـ tissue death.":"Topic Summary: الـ Necrosis هو form من الـ irreversible cell injury يتميز بـ localized tissue death داخل الـ living organism. يتضمن توقف الـ vital cellular activities، واستمرار الـ enzymatic digestion (autolysis) بواسطة الـ released lysosomal enzymes، و acute inflammatory response لاحق. هذا يميز الـ necrosis عن الـ apoptosis، وهو programmed cell death بدون inflammation."}},{"number":"15","type":"MCQ","question":"Which of the following is identified as the hallmark of irreversible cell injury, leading to massive intracellular influx of calcium and subsequent activation of intracellular enzymes like phospholipases, proteases, and endonucleases?","options":["A. Decreased ATP production","B. Failure of the sodium pump","C. Swelling of endoplasmic reticulum","D. Severe membrane damage","E. Reversible cellular swelling"],"correctAnswer":"D","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 11 (\"Mechanism of irreversible cell injury:\") وصفحة 12 (\"The hallmark of irreversible injury is membrane damage\")","explanations":{"E: إجابة خاطئة. الـ Reversible cellular swelling هو، بحكم التعريف، reversible، وليس irreversible cell injury.":"Topic Summary: يُعرف الـ Severe membrane damage بأنه الـ hallmark لـ irreversible cell injury. يؤدي هذا الـ damage إلى influx حاسم لـ extracellular calcium إلى الـ cell، والذي يقوم بعد ذلك بتنشيط cascade من الـ destructive intracellular enzymes مثل الـ phospholipases والـ proteases والـ endonucleases. تقوم هذه الـ enzymes بهضم الـ cellular components بشكل منهجي، مما يؤدي في النهاية إلى الـ cell death والـ characteristic features لـ necrosis."}},{"number":"16","type":"MCQ","question":"During the microscopic examination of necrotic tissue, a pathologist observes nuclei that are small, shrunken, and deeply stained, with condensed chromatin. This specific nuclear change is known as:","options":["A. Karyolysis","B. Karyorrhexis","C. Pyknosis","D. Eosinophilia","E. Hydropic degeneration"],"correctAnswer":"C","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 12 (\"Cellular changes in necrosis 2. Nuclear: the nucleus may show: • Pyknosis:\")","explanations":{"E: إجابة خاطئة. الـ Hydropic degeneration هو type من الـ reversible cellular swelling، يتميز بـ accumulation of water في large vacuoles، وليس nuclear change في الـ necrosis.":"Topic Summary: الـ Nuclear changes هي morphological indicators رئيسية لـ necrosis. الـ Pyknosis هو أحد هذه الـ changes، ويتميز بأن الـ nucleus يصبح small و shrunken و deeply basophilic بسبب الـ chromatin condensation. يساعد هذا الـ distinct appearance الـ pathologists على تحديد الـ necrotic cells وتمييزها عن الـ cells التي تمر بأشكال أخرى من الـ injury أو الـ death، مثل الـ apoptosis أو الـ reversible changes."}},{"number":"17","type":"MCQ","question":"A patient suffers a kidney infarction due to ischemia. Pathological examination reveals that the tissue is firm and opaque, and microscopically, the general outline of the cells is preserved, but cellular details are lost, giving a \"City of ghosts\" appearance. This type of necrosis is classified as:","options":["A. Liquefactive necrosis","B. Caseation necrosis","C. Coagulative necrosis","D. Fat necrosis","E. Fibrinoid necrosis"],"correctAnswer":"C","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 13 (\"Types of necrosis 1. Coagulative necrosis:\")","explanations":{"E: إجابة خاطئة. الـ Fibrinoid necrosis يتضمن الـ swelling والـ fragmentation لـ collagen fibers ويحدث في الـ collagen diseases أو الـ malignant hypertension، وليس الـ kidney infarction.":"Topic Summary: الـ Coagulative necrosis هو الـ most common type لـ necrosis، وينتج عادة عن الـ ischemia. يتميز بـ protein denaturation، مما يؤدي إلى firm و opaque tissue بشكل gross. مجهرياً، يتم الحفاظ على الـ cellular architecture، ولكن الـ individual cellular details تُفقد، مما يؤدي إلى ظهور \"City of ghosts\". الـ Infarctions لـ solid organs مثل الـ kidney هي classic examples لـ coagulative necrosis."}},{"number":"18","type":"MCQ","question":"A patient experiences a brain infarction, leading to rapid liquefaction of the necrotic tissue due to its high lipid content. This specific type of necrosis is known as:","options":["A. Coagulative necrosis","B. Liquefactive necrosis","C. Caseation necrosis","D. Gangrenous necrosis","E. Traumatic fat necrosis"],"correctAnswer":"B","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 13 (\"2. Liquefactive necrosis:\")","explanations":{"E: إجابة خاطئة. الـ Traumatic fat necrosis ناتج عن trauma لـ fatty organs مثل الـ breast والـ subcutaneous tissue، وليس الـ brain infarction.":"Topic Summary: الـ Liquefactive necrosis هو type مميز من الـ tissue death يتميز بـ rapid enzymatic digestion لـ dead cells، مما يؤدي إلى تكوين viscous liquid mass. يرى عادة في الـ brain بعد الـ infarction، حيث يساهم الـ high lipid content لـ nervous tissue في الـ liquefaction، وفي الـ abscesses بسبب action الـ proteolytic enzymes من الـ neutrophils."}},{"number":"19","type":"MCQ","question":"A patient diagnosed with tuberculosis exhibits necrotic tissue that is yellowish and has a cheesy-like consistency. Microscopically, there is a complete loss of cellular details. This specific type of necrosis is characteristic of:","options":["A. Coagulative necrosis","B. Liquefactive necrosis","C. Caseation necrosis","D. Enzymatic fat necrosis","E. Fibrinoid necrosis"],"correctAnswer":"C","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 13 (\"3. Caseation necrosis:\")","explanations":{"E: إجابة خاطئة. الـ Fibrinoid necrosis يتضمن الـ swelling والـ fragmentation لـ collagen fibers ويحدث في الـ specific vascular/collagen diseases، وليس الـ tuberculosis.":"Topic Summary: الـ Caseation necrosis هو form مميز من الـ necrosis يرتبط بقوة بـ tuberculosis. يظهر بشكل gross كـ yellowish, cheesy-like material، وهو مزيج من الـ coagulative necrosis والـ slow liquefaction. مجهرياً، هناك complete effacement لـ cellular architecture، مما يجعله key diagnostic feature لـ tuberculous lesions."}},{"number":"20","type":"MCQ","question":"A cellular process is observed where individual cells undergo programmed death, characterized by cell shrinkage, dense eosinophilic cytoplasm, nuclear chromatin condensation, and the formation of cytoplasmic blebs and apoptotic bodies, all occurring *without* an inflammatory response. This process is defined as:","options":["A. Necrosis","B. Coagulative necrosis","C. Apoptosis","D. Cellular swelling","E. Fatty change"],"correctAnswer":"C","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 14 (\"Apoptosis Definition:\", \"Morphological changes:\")","explanations":{"E: إجابة خاطئة. الـ Fatty change هو reversible cell injury يتضمن الـ fat accumulation، وليس الـ programmed cell death.":"Topic Summary: الـ Apoptosis هو form منظم للغاية من الـ programmed cell death، ويختلف عن الـ necrosis. تشمل الـ Key characteristics غياب الـ inflammatory response، والتأثير على الـ individual cells أو الـ small groups، والـ morphological changes المحددة مثل الـ cell shrinkage والـ chromatin condensation، وتكوين الـ apoptotic bodies. هذه العملية حاسمة لـ normal development والـ tissue homeostasis، و eliminating damaged or unwanted cells."}},{"number":"21","type":"MCQ","question":"Which of the following regulator genes is known to *inhibit* apoptosis by preventing the release of cytochrome C from mitochondria and binding pro-apoptosis protease activating factors?","options":["A. p53","B. Bcl-2","C. Caspase","D. Endonuclease","E. Phospholipase"],"correctAnswer":"B","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 15 (\"Regulator genes of apoptosis: • Bcl-2 (inhibits apoptosis) by:\")","explanations":{"E: إجابة خاطئة. الـ Phospholipases هي enzymes يتم تنشيطها في الـ irreversible cell injury (necrosis) لهضم الـ cell membranes، وليست regulator genes تمنع الـ apoptosis.":"Topic Summary: يتم تنظيم الـ Apoptosis بإحكام من خلال توازن بين الـ pro-apoptotic والـ anti-apoptotic proteins. الـ Bcl-2 هو key anti-apoptotic regulator gene يمنع الـ programmed cell death عن طريق تثبيت الـ mitochondrial membranes، وبالتالي يثبط release الـ cytochrome C، وهي crucial step في الـ intrinsic apoptotic pathway. فهم هذه الـ regulators أمر حيوي لفهم الـ disease processes التي تتضمن الـ abnormal cell survival أو الـ death."}},{"number":"22","type":"MCQ","question":"When differentiating between necrosis and apoptosis, which of the following criteria reliably indicates necrosis rather than apoptosis?","options":["A. Cell shrinkage","B. Intact cell membrane with blebbing","C. Presence of an inflammatory reaction","D. Compaction of mitochondria","E. Pathologic or physiologic stimulus"],"correctAnswer":"C","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 15 (\"Table 1: differences between necrosis and apoptosis\")","explanations":{"E: إجابة خاطئة. يمكن أن يتم تحفيز كل من الـ necrosis والـ apoptosis بواسطة pathologic stimulus. يمكن أن يكون الـ apoptosis أيضاً physiologic، ولكن وجود *أي منهما* لا يميز بشكل موثوق الـ necrosis عن الـ apoptosis وحده. يظهر الـ table \"Stimulus: Pathologic\" لـ necrosis و \"Pathologic or physiologic\" لـ apoptosis.":"Topic Summary: الـ Distinction بين الـ necrosis والـ apoptosis أمر حاسم في الـ pathology. عامل التمييز الرئيسي هو الـ inflammatory response. الـ Necrosis، كونه form غير متحكم فيه من الـ cell death، يطلق عادة acute inflammatory reaction قوي في الـ surrounding tissue. على النقيض، يحدث الـ apoptosis، وهو programmed و orderly process، دون إثارة inflammatory response، مما يسمح بـ efficient removal لـ dead cells بدون collateral tissue damage."}},{"number":"23","type":"MCQ","question":"A patient with a history of alcoholism undergoes a liver biopsy, which reveals intracellular hyaline inclusions within the hepatocytes. According to the text, these specific inclusions are most likely:","options":["A. Russel bodies","B. Amyloidosis","C. Mallory bodies","D. Corpora amylacea","E. Lipofuscin"],"correctAnswer":"C","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 16 (\"Hyaline change: • Examples of intracellular hyaline change:\")","explanations":{"E: إجابة خاطئة. الـ Lipofuscin هو endogenous pigment، يوصف بأنه \"Peri ":"Topic Summary: يشير الـ Hyaline change إلى alteration غير محددة تتميز بـ homogenous و pink و structureless appearance على الـ H&E stains. يمكن أن يكون intracellular أو extracellular. الـ Intracellular hyaline changes، مثل الـ Mallory bodies، هي indicators مهمة لـ specific pathologies مثل الـ alcoholic liver disease، مما يعكس الـ accumulation لـ protein aggregates داخل الـ hepatocytes."}},{"number":"24","type":"MCQ","question":"A lung biopsy reveals the deposition of carbon particles in the interstitial tissue, resulting from the inhalation of these particles. This condition is known as:","options":["A. Lipofuscin","B. Melanin","C. Hemosidrin","D. Anthracosis","E. Bilirubin"],"correctAnswer":"D","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 16 (\"Exogenous pigments: • Anthracosis:\")","explanations":{"E: إجابة خاطئة. الـ Bilirubin هو endogenous pigment يرتبط بـ jaundice و kernicterus، وليس exogenous carbon.":"Topic Summary: الـ Exogenous pigments هي substances يتم إدخالها إلى الجسم من الـ external environment وتتراكم في الـ tissues. الـ Anthracosis هو common example، ويتميز بـ deposition لـ inhaled carbon particles، عادة في الـ interstitial tissue لـ lungs. تظهر هذه الـ condition غالباً في الـ individuals المعرضين لـ polluted air أو الـ occupational dusts، مما يؤدي إلى black discoloration مميز لـ lung tissue."}},{"number":"25","type":"MCQ","question":"A pathologist observes abnormal deposition of calcium phosphates specifically within necrotic and dead tissue in a patient's heart valve. This type of pathological calcification is defined as:","options":["A. Metastatic calcification","B. Hyperparathyroidism","C. Psammoma bodies","D. Dystrophic calcification","E. Sarcoidosis"],"correctAnswer":"D","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 17 (\"Pathological calcification 1. Dystrophic calcification: Definition:\")","explanations":{"E: إجابة خاطئة. الـ Sarcoidosis هو *cause* لـ metastatic calcification، وليس type من الـ calcification نفسه.":"Topic Summary: الـ Pathological calcification يتضمن الـ abnormal deposition لـ calcium salts في الـ tissues. الـ Dystrophic calcification هو specific type يحدث في الـ necrotic أو الـ dead tissues، حتى عندما تكون الـ serum calcium levels طبيعية. إنه common finding في مناطق الـ tissue damage، مثل الـ infarcted myocardium أو الـ atherosclerotic plaques، ويختلف عن الـ metastatic calcification، الذي يحدث في الـ normal tissues بسبب الـ hypercalcemia."}},{"number":"26","type":"MCQ","question":"A patient with hyperparathyroidism develops calcification in otherwise normal kidney tissue. This condition, characterized by the precipitation of calcium salts in normal tissues due to hypercalcaemia, is known as:","options":["A. Dystrophic calcification","B. Traumatic fat necrosis","C. Atherosclerotic plaques","D. Metastatic calcification","E. Psammoma bodies"],"correctAnswer":"D","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 18 (\"2. Metastatic calcification: Definition:\", \"Causes:\")","explanations":{"E: إجابة خاطئة. الـ Psammoma bodies هي examples لـ dystrophic calcification، وليس metastatic calcification.":"Topic Summary: الـ Metastatic calcification هو type من الـ pathological calcification حيث يتم deposition لـ calcium salts في الـ *normal* tissues. يحدث هذا تحديداً في سياق الـ hypercalcemia، مما يعني elevated calcium levels في الـ blood. تشمل الـ Common causes الـ hyperparathyroidism والـ renal failure والـ vitamin D intoxication. وجود الـ calcification في الـ normal tissues، بدلاً من الـ necrotic ones، هو الـ key differentiator عن الـ dystrophic calcification."}},{"number":"27","type":"MCQ","question":"A patient's liver undergoes an increase in size following a partial hepatectomy, primarily due to an increase in the *number* of liver cells. This adaptive cellular change is known as:","options":["A. Hypertrophy","B. Atrophy","C. Metaplasia","D. Dysplasia","E. Hyperplasia"],"correctAnswer":"E","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 19 (\"Hyperplasia Definition:\", \"Causes:\")","explanations":{"E: إجابة صحيحة. يعرّف النص الـ \"Hyperplasia\" بأنه \"Increase in size of an organ due to increase in the number of its cells.\" ويذكر أيضاً \"Compensatory: such as in liver after partial hepatectomy\" كـ physiologic cause. يتطابق هذا تماماً مع السيناريو.":"Topic Summary: الـ Hyperplasia هو cellular adaptation يتميز بـ increase في الـ size لـ organ أو tissue بسبب increase في الـ *number* لـ its constituent cells. يمكن أن تكون هذه العملية physiological، مثل الـ compensatory hyperplasia في الـ liver بعد الـ partial resection، أو pathological، كما يرى في الـ endometrial أو الـ prostatic hyperplasia. تختلف عن الـ hypertrophy، التي تتضمن increase في الـ cell size."}},{"number":"28","type":"MCQ","question":"A patient with chronic hypertension develops an enlarged left ventricle of the heart. This increase in organ size is primarily due to an increase in the *size* of the individual cardiac muscle cells, a process known as:","options":["A. Hyperplasia","B. Atrophy","C. Metaplasia","D. Hypertrophy","E. Dysplasia"],"correctAnswer":"D","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 19 (\"Hypertrophy Definition:\", \"Causes:\")","explanations":{"E: إجابة خاطئة. الـ Dysplasia هو abnormal proliferation مع variation في الـ size والـ shape والـ arrangement لـ cells.":"Topic Summary: الـ Hypertrophy هو cellular adaptation حيث يزيد الـ organ أو الـ tissue في الـ size بسبب increase في الـ *size* لـ individual cells، بدون increase في الـ cell number. يمكن أن يكون هذا physiological response، مثل الـ muscle growth في الـ athletes، أو pathological adaptation، مثل الـ left ventricular hypertrophy الذي يرى في الـ chronic hypertension، حيث تتضخم الـ cardiac muscle cells للتعامل مع الـ increased workload."}},{"number":"29","type":"MCQ","question":"A long-term smoker develops a condition where the normal bronchial epithelium is replaced by stratified squamous epithelium in response to chronic irritation. This adaptive cellular change is an example of:","options":["A. Hyperplasia","B. Hypertrophy","C. Atrophy","D. Metaplasia","E. Dysplasia"],"correctAnswer":"D","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 20 (\"Metaplasia Definition:\", \"Examples: • Epithelial metaplasia:\")","explanations":{"E: إجابة خاطئة. الـ Dysplasia هو abnormal proliferation مع variation في الـ size والـ shape والـ arrangement لـ cells، وهو change أكثر اضطراباً من الـ metaplasia.":"Topic Summary: الـ Metaplasia هو reversible cellular adaptation حيث يتم استبدال one mature cell type بـ another mature cell type استجابة لـ chronic irritation أو الـ stress. غالباً ما يكون هذا الـ change protective، مما يسمح للـ tissue بتحمل الـ adverse environment بشكل أفضل، على الرغم من أنه قد يؤهب أحياناً لـ malignant transformation. مثال كلاسيكي هو استبدال الـ columnar bronchial epithelium بـ stratified squamous epithelium الأكثر مرونة في الـ smokers."}},{"number":"30","type":"MCQ","question":"A cervical biopsy from a patient infected with Human Papilloma Virus (HPV) reveals abnormal proliferation of cells characterized by variation in size, shape, and arrangement, specifically affecting the inner two-thirds of the epithelial lining. This condition is classified as:","options":["A. Metaplasia","B. Cervical intraepithelial neoplasia (CIN) grade I","C. Cervical intraepithelial neoplasia (CIN) grade II","D. Cervical intraepithelial neoplasia (CIN) grade III","E. Carcinoma in situ"],"correctAnswer":"C","answer":"","topicSummary":"","lesson":"الـ General Pathology - صفحة 20 (\"Dysplasia Definition:\", \"Examples: Cervical intraepithelial neoplasia (CIN):\")","explanations":{"E: إجابة خاطئة. بينما الـ severe dysplasia (CIN grade III) يعتبر carcinoma in situ، يصف السيناريو تحديداً الـ involvement لـ inner two":"Topic Summary: الـ Dysplasia هو cellular adaptation مهم يتميز بـ disordered cell growth، بما في ذلك الـ variations في الـ cell size والـ shape والـ arrangement. يعتبر pre-neoplastic lesion، مما يعني أنه يمكن أن يتطور إلى cancer، ولكنه ليس invasive carcinoma بعد. الـ Cervical intraepithelial neoplasia (CIN) هو example معروف، يتم تصنيفه بناءً على مدى الـ epithelial involvement، حيث يشير الـ CIN II إلى الـ involvement لـ inner two-thirds من الـ epithelial lining."}}]</script>
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      try {
+        const quizContainer = document.getElementById('quiz-container');
+        const quizData = JSON.parse(document.getElementById('quiz-data').textContent);
+        const storageKey = 'quizState_1766222848019_' + document.title.replace(/\s+/g, '_');
+        let userState = JSON.parse(localStorage.getItem(storageKey)) || {};
+        
+        // Exam Mode State
+        let examModeActive = false;
+        let examStartTime = null;
+        let timerInterval = null;
+
+        const totalMCQs = 30;
+        const finishBtn = document.getElementById('finish-quiz-btn');
+        const resultsContainer = document.getElementById('results-container');
+        const scoreDisplay = document.getElementById('score-display');
+        const scoreDetails = document.getElementById('score-details');
+        const resetBtn = document.getElementById('reset-quiz-btn');
+        
+        // Export Buttons
+        const exportHtmlBtn = document.getElementById('export-html-btn');
+        const exportCsvBtn = document.getElementById('export-csv-btn');
+
+        const startExamBtn = document.getElementById('start-exam-btn');
+        const timerDisplay = document.getElementById('timer-display');
+        const examControls = document.getElementById('exam-controls');
+        
+        // Theme Toggle Logic
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        const htmlElement = document.documentElement;
+        const themeIcon = document.getElementById('theme-icon');
+
+        // Check Saved Theme
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            htmlElement.classList.add('dark');
+            if(themeIcon) updateIcon(true);
+        } else {
+            htmlElement.classList.remove('dark');
+            if(themeIcon) updateIcon(false);
+        }
+
+        if(themeToggleBtn) {
+            themeToggleBtn.addEventListener('click', () => {
+                if (htmlElement.classList.contains('dark')) {
+                    htmlElement.classList.remove('dark');
+                    localStorage.setItem('theme', 'light');
+                    updateIcon(false);
+                } else {
+                    htmlElement.classList.add('dark');
+                    localStorage.setItem('theme', 'dark');
+                    updateIcon(true);
+                }
+            });
+        }
+
+        function updateIcon(isDark) {
+            if(!themeIcon) return;
+            if(isDark) {
+                themeIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />';
+            } else {
+                themeIcon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />';
+            }
+        }
+
+        // --- EXAM MODE LOGIC ---
+        if (startExamBtn) {
+            startExamBtn.addEventListener('click', startExamMode);
+        }
+
+        function startExamMode() {
+            if (confirm('هل أنت متأكد من بدء وضع الامتحان؟ سيتم مسح الإجابات الحالية وبدء العداد.')) {
+                // Reset state
+                userState = {};
+                saveState();
+                localStorage.removeItem(storageKey);
+                
+                examModeActive = true;
+                examStartTime = Date.now();
+                
+                // UI Updates
+                startExamBtn.classList.add('hidden');
+                timerDisplay.classList.remove('hidden');
+                resultsContainer.classList.add('hidden');
+                if (finishBtn) finishBtn.classList.remove('hidden');
+                if (finishBtn) finishBtn.textContent = 'إنهاء الامتحان وتصحيح الأوراق';
+                
+                // Clear container and Re-render
+                quizContainer.innerHTML = '';
+                renderQuiz();
+                addListeners();
+                
+                // Start Timer
+                clearInterval(timerInterval);
+                timerInterval = setInterval(updateTimer, 1000);
+            }
+        }
+
+        function updateTimer() {
+            const diff = Math.floor((Date.now() - examStartTime) / 1000);
+            const mins = Math.floor(diff / 60).toString().padStart(2, '0');
+            const secs = (diff % 60).toString().padStart(2, '0');
+            const timerVal = document.getElementById('timer-val');
+            if(timerVal) timerVal.textContent = `${mins}:${secs}`;
+        }
+
+        function calculateAndShowResults() {
+            let isExamFinish = examModeActive;
+            
+            // Stop everything first
+            if (examModeActive) {
+                clearInterval(timerInterval);
+                examModeActive = false; // Disable mode so render shows results
+                const timerVal = document.getElementById('timer-val');
+                if(timerVal) timerVal.textContent += ' (انتهى)';
+            }
+
+            if (totalMCQs === 0 && !isExamFinish) {
+                resultsContainer.classList.remove('hidden');
+                scoreDisplay.textContent = 'N/A';
+                scoreDetails.textContent = 'لا توجد أسئلة اختيار من متعدد لحساب النتيجة.';
+                if (finishBtn) finishBtn.classList.add('hidden');
+                resultsContainer.scrollIntoView({ behavior: 'smooth' });
+                return;
+            }
+
+            // Re-render to show answers if we were in exam mode
+            if (isExamFinish) {
+                quizContainer.innerHTML = '';
+                renderQuiz();
+                addListeners(); // Re-add listeners (though they might be disabled visually)
+            }
+
+            let correctAnswers = 0;
+            quizData.forEach((q, index) => {
+            if (q.type === 'MCQ') {
+                const questionState = userState[index];
+                if (questionState && questionState.selected === q.correctAnswer) {
+                correctAnswers++;
+                }
+            }
+            });
+
+            const percentage = Math.round((correctAnswers / totalMCQs) * 100);
+            scoreDisplay.textContent = `${percentage}%`;
+            
+            let detailsText = `لقد أجبت بشكل صحيح على ${correctAnswers} من ${totalMCQs} أسئلة.`;
+            if (isExamFinish && examStartTime) {
+                const diff = Math.floor((Date.now() - examStartTime) / 1000);
+                const mins = Math.floor(diff / 60);
+                const secs = diff % 60;
+                detailsText += ` الوقت المستغرق: ${mins} دقيقة و ${secs} ثانية.`;
+            }
+            
+            scoreDetails.textContent = detailsText;
+            
+            resultsContainer.classList.remove('hidden');
+            if (finishBtn) finishBtn.classList.add('hidden');
+            resultsContainer.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // --- EXPORT FUNCTIONS ---
+        
+        // 1. Export Full Exam Report (HTML)
+        if (exportHtmlBtn) {
+            exportHtmlBtn.addEventListener('click', () => {
+            let correctAnswers = 0;
+            quizData.forEach((q, index) => {
+                if (q.type === 'MCQ') {
+                const questionState = userState[index];
+                if (questionState && questionState.selected === q.correctAnswer) correctAnswers++;
+                }
+            });
+            const percentage = totalMCQs > 0 ? Math.round((correctAnswers / totalMCQs) * 100) : 0;
+            
+            let reportContent = `
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>تقرير الامتحان: New Quiz</title>
+                <style>
+                    body { font-family: sans-serif; padding: 20px; direction: rtl; }
+                    .header { text-align: center; border-bottom: 2px solid #ddd; padding-bottom: 20px; margin-bottom: 20px; }
+                    .score { font-size: 2em; color: ${percentage >= 50 ? 'green' : 'red'}; font-weight: bold; }
+                    .question-block { border: 1px solid #eee; padding: 15px; margin-bottom: 15px; border-radius: 8px; background: #fff; }
+                    .q-title { font-weight: bold; margin-bottom: 10px; color: #333; }
+                    .option { padding: 5px 10px; margin: 3px 0; border-radius: 4px; }
+                    .correct-ans { background-color: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; font-weight: bold; } /* Green */
+                    .user-wrong { background-color: #fee2e2; color: #991b1b; border: 1px solid #fecaca; text-decoration: line-through; } /* Red */
+                    .explanation { margin-top: 10px; padding: 10px; background: #f8fafc; border-right: 4px solid #3b82f6; font-size: 0.9em; color: #555; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h1>تقرير نتيجة الامتحان</h1>
+                    <h2>New Quiz</h2>
+                    <div class="score">النتيجة: ${percentage}%</div>
+                    <p>الإجابات الصحيحة: ${correctAnswers} من ${totalMCQs}</p>
+                    <p>تاريخ التقرير: ${new Date().toLocaleString()}</p>
+                </div>
+            `;
+            
+            quizData.forEach((q, index) => {
+                const uState = userState[index] || {};
+                const userSelected = uState.selected;
+                
+                reportContent += `<div class="question-block"><div class="q-title">س${q.number}: ${formatText(q.question)}</div>`;
+                
+                if (q.type === 'MCQ') {
+                    reportContent += '<ul>';
+                    q.options.forEach(opt => {
+                        const letter = opt.substring(0, 1);
+                        const text = opt.substring(opt.indexOf(' ') + 1);
+                        let className = 'option';
+                        let suffix = '';
+                        
+                        if (letter === q.correctAnswer) {
+                            className += ' correct-ans';
+                            suffix = ' (الإجابة الصحيحة)';
+                        } else if (letter === userSelected) {
+                            className += ' user-wrong';
+                            suffix = ' (إجابتك)';
+                        } else {
+                            // Just regular option
+                            className += ' text-gray-700';
+                        }
+                        
+                        // Mark user selection even if correct
+                        if (letter === userSelected && letter === q.correctAnswer) {
+                            suffix = ' (إجابتك ✔)';
+                        }
+
+                        reportContent += `<li class="${className}">${letter}. ${formatText(text)} ${suffix}</li>`;
+                    });
+                    reportContent += '</ul>';
+                    
+                    // Add explanations
+                    if (q.explanations) {
+                        reportContent += `<div class="explanation"><strong>الشرح:</strong><br/>`;
+                        Object.keys(q.explanations).forEach(key => {
+                            const expl = q.explanations[key];
+                            const isCorr = key === q.correctAnswer;
+                            const color = isCorr ? 'green' : 'red';
+                            reportContent += `<span style="color:${color}">(${key})</span> ${formatText(expl)}<br/>`;
+                        });
+                        reportContent += `</div>`;
+                    }
+                } else {
+                    reportContent += `<div class="explanation"><strong>الإجابة النموذجية:</strong><br/>${formatText(q.answer)}</div>`;
+                }
+                reportContent += `</div>`;
+            });
+            
+            reportContent += `</body></html>`;
+            
+            const blob = new Blob([reportContent], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'exam_report_${new Date().getTime()}.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            });
+        }
+
+        // 2. Export Mistakes (CSV) for Anki - UPDATED HTML FORMAT
+        if (exportCsvBtn) {
+            exportCsvBtn.addEventListener('click', () => {
+            let csvContent = '﻿'; // BOM for Excel UTF-8
+            // Header for Anki (Front, Back)
+            csvContent += '"Front","Back"\n';
+            
+            let mistakesCount = 0;
+
+            quizData.forEach((q, index) => {
+                const uState = userState[index] || {};
+                // Only export if MCQ and Wrong (or not answered)
+                if (q.type === 'MCQ' && uState.selected !== q.correctAnswer) {
+                    mistakesCount++;
+                    
+                    // --- Construct FRONT Card (Question + Options) ---
+                    // Format: <strong>Q: Question</strong><br><br><ul><li>A. Opt</li>...</ul>
+                    
+                    let frontHtml = `<strong>Q${q.number}: ${escapeHTML(q.question)}</strong><br><br><ul>`;
+                    q.options.forEach(opt => {
+                        frontHtml += `<li>${escapeHTML(opt)}</li>`;
+                    });
+                    frontHtml += `</ul>`;
+
+                    // --- Construct BACK Card (Answer + Explanation + Summary) ---
+                    // Format: <div style='color:green...'>Correct: ...</div><br><em>Why?</em> ...<br><br><strong>Summary:</strong> ...
+                    
+                    const correctOptText = q.options.find(o => o.startsWith(q.correctAnswer)) || q.correctAnswer;
+                    
+                    // Explanation logic: Grab specific explanation for correct answer if exists, else generic
+                    let correctExplanation = '';
+                    if (q.explanations && q.explanations[q.correctAnswer]) {
+                        correctExplanation = q.explanations[q.correctAnswer];
+                    } else if (q.explanations) {
+                        // Fallback: join all explanations
+                        Object.keys(q.explanations).forEach(k => {
+                             correctExplanation += `(${k}): ${q.explanations[k]} `;
+                        });
+                    }
+
+                    let backHtml = `<div style='color:green; font-weight:bold;'>Correct: ${escapeHTML(correctOptText)}</div><br>`;
+                    
+                    if (correctExplanation) {
+                        backHtml += `<em>Why?</em> ${escapeHTML(correctExplanation)}<br>`;
+                    }
+                    
+                    if (q.topicSummary) {
+                        backHtml += `<br><strong>Summary:</strong> ${escapeHTML(q.topicSummary)}`;
+                    }
+
+                    if (q.lesson) {
+                        backHtml += `<br><strong>Lesson:</strong> ${escapeHTML(q.lesson)}`;
+                    }
+
+// Escape quotes for CSV: " -> ""
+const safeFront = '"' + frontHtml.replace(/"/g, '""') + '"';
+const safeBack = '"' + backHtml.replace(/"/g, '""') + '"';
+
+csvContent += `${safeFront},${safeBack}\n`;
+                }
+            });
+            
+            if (mistakesCount === 0) {
+                alert('ممتاز! لا توجد أخطاء لتصديرها.');
+                return;
+            }
+            
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'anki_mistakes_formatted_${new Date().getTime()}.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            });
+        }
+
+
+        function resetQuiz() {
+            if(confirm('هل تريد حقاً إعادة الاختبار؟')) {
+                userState = {};
+                saveState();
+                localStorage.removeItem(storageKey);
+                location.reload();
+            }
+        }
+
+        function saveState() {
+            localStorage.setItem(storageKey, JSON.stringify(userState));
+        }
+
+        function escapeHTML(str) {
+            if (!str) return '';
+            return str.replace(/[&<>"']/g, function(match) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[match];
+            });
+        }
+        
+        function formatText(text) {
+            return escapeHTML(text).replace(/\n/g, '<br />');
+        }
+
+        function handleOptionClick(e, question, index) {
+            // If not exam mode and already answered, do nothing
+            if (!examModeActive && userState[index]) return;
+
+            const selectedOption = e.currentTarget;
+            const selectedLetter = selectedOption.dataset.letter;
+
+            // Save state
+            userState[index] = { selected: selectedLetter };
+            saveState();
+            
+            const questionCard = selectedOption.closest('.question-card');
+            const optionWrappers = questionCard.querySelectorAll('.option');
+
+            // Logic split based on mode
+            if (examModeActive) {
+                // EXAM MODE: Just highlight selection, deselect others, no right/wrong
+                optionWrappers.forEach(optWrapper => {
+                    const letter = optWrapper.dataset.letter;
+                    const innerDiv = optWrapper.querySelector('div:first-child');
+                    
+                    // Reset styling first
+                    innerDiv.classList.remove('option-exam-selected', 'bg-blue-100', 'border-blue-500', 'dark:bg-blue-900', 'dark:border-blue-400');
+                    innerDiv.classList.add('option-neutral', 'bg-white', 'dark:bg-gray-800', 'border-gray-300', 'dark:border-gray-600');
+                    
+                    if (letter === selectedLetter) {
+                        innerDiv.classList.remove('option-neutral', 'bg-white', 'dark:bg-gray-800', 'border-gray-300', 'dark:border-gray-600');
+                        innerDiv.classList.add('option-exam-selected'); // We will define this class in CSS
+                    }
+                });
+                // Do NOT show explanation container
+            } else {
+                // PRACTICE MODE (Immediate Feedback)
+                const explanationContainer = questionCard.querySelector('.explanations-container');
+                if (explanationContainer) explanationContainer.classList.remove('hidden');
+
+                optionWrappers.forEach(optWrapper => {
+                    const letter = optWrapper.dataset.letter;
+                    const innerDiv = optWrapper.querySelector('div:first-child');
+                    
+                    optWrapper.classList.add('disabled');
+                    innerDiv.classList.remove('cursor-pointer', 'hover:bg-blue-50', 'dark:hover:bg-gray-700', 'hover:border-blue-400');
+                    
+                    const isCorrect = (letter === question.correctAnswer);
+                    const isSelected = (letter === selectedLetter);
+                    const iconWrapper = innerDiv.querySelector('div:first-child');
+
+                    if (isCorrect) {
+                        innerDiv.classList.add('option-correct');
+                        innerDiv.classList.remove('border-gray-300', 'dark:border-gray-600', 'bg-white', 'dark:bg-gray-800');
+                        if (iconWrapper) {
+                            iconWrapper.innerHTML = `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>`;
+                            iconWrapper.className = 'flex-shrink-0 w-6 h-6 rounded-full bg-green-100 flex items-center justify-center text-green-700 dark:bg-green-900 dark:text-green-300';
+                        }
+                    } else if (isSelected) {
+                        innerDiv.classList.add('option-incorrect');
+                        innerDiv.classList.remove('border-gray-300', 'dark:border-gray-600', 'bg-white', 'dark:bg-gray-800');
+                        if (iconWrapper) {
+                            iconWrapper.innerHTML = `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>`;
+                            iconWrapper.className = 'flex-shrink-0 w-6 h-6 rounded-full bg-red-100 flex items-center justify-center text-red-700 dark:bg-red-900 dark:text-red-300';
+                        }
+                    } else {
+                        innerDiv.classList.add('option-neutral');
+                        optWrapper.classList.add('opacity-50');
+                    }
+                });
+            }
+        }
+
+        function handleShowAnswer(e, index) {
+            userState[index] = { revealed: true };
+            saveState();
+            const button = e.currentTarget;
+            const answerContainer = button.nextElementSibling;
+            answerContainer.classList.remove('hidden');
+            button.classList.add('hidden');
+        }
+
+        function renderQuiz() {
+            if(!quizContainer) return;
+            quizData.forEach((q, index) => {
+            const questionState = userState[index] || {};
+            const card = document.createElement('div');
+            card.className = 'question-card bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg mb-6 border border-transparent dark:border-gray-700 transition-colors duration-300';
+
+            let content = `
+                <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-1">Question ${q.number}</h3>
+                <p class="text-sm font-medium text-gray-500 dark:text-gray-400 mb-4">(${q.type})</p>
+                <div class="question-text text-gray-900 dark:text-gray-200 text-base leading-relaxed mb-4 whitespace-pre-wrap">${formatText(q.question)}</div>
+            `;
+
+            if (q.type === 'MCQ') {
+                const { selected: selectedLetter } = questionState;
+                content += `<div class="options-container space-y-3 mb-4">`;
+                q.options.forEach(opt => {
+                const letter = opt.substring(0, 1);
+                const optionText = opt.substring(opt.indexOf(' ') + 1);
+                
+                let classes = 'option-inner p-4 border border-gray-300 dark:border-gray-600 rounded-lg flex items-center space-x-3 transition duration-150 bg-white dark:bg-gray-800 dark:text-gray-200';
+                let icon = `<div class="flex-shrink-0 w-6 h-6 rounded-full border-2 border-gray-400 dark:border-gray-500 flex items-center justify-center font-semibold text-gray-600 dark:text-gray-300">${letter}</div>`;
+                
+                if (selectedLetter && !examModeActive) {
+                    // --- RENDER RESULT STATE (Standard Mode or Finished Exam) ---
+                    const isCorrect = (letter === q.correctAnswer);
+                    const isSelected = (letter === selectedLetter);
+                    
+                    if (isCorrect) {
+                    classes += ' option-correct border-green-500 dark:border-green-500';
+                    icon = `<div class="flex-shrink-0 w-6 h-6 rounded-full bg-green-100 flex items-center justify-center text-green-700 dark:bg-green-900 dark:text-green-300"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg></div>`;
+                    } else if (isSelected) {
+                    classes += ' option-incorrect border-red-500 dark:border-red-500';
+                    icon = `<div class="flex-shrink-0 w-6 h-6 rounded-full bg-red-100 flex items-center justify-center text-red-700 dark:bg-red-900 dark:text-red-300"><svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg></div>`;
+                    } else {
+                    classes += ' option-neutral opacity-50';
+                    }
+                } else if (selectedLetter && examModeActive) {
+                    // --- RENDER EXAM ACTIVE STATE ---
+                    // No red/green, just highlight the selected one
+                    if (letter === selectedLetter) {
+                        classes += ' option-exam-selected';
+                    } else {
+                        classes += ' option-neutral'; 
+                    }
+                } else {
+                    // --- DEFAULT STATE ---
+                    classes += ' cursor-pointer hover:bg-blue-50 dark:hover:bg-gray-700 hover:border-blue-400 dark:hover:border-blue-400';
+                }
+                
+                let wrapperClass = 'option';
+                // Disable clicking if answered and NOT in exam mode (In exam mode, we can change answers, so we keep clickable)
+                // Actually, if we want to change answers in exam mode, we shouldn't add 'disabled' class if examModeActive is true
+                if (selectedLetter && !examModeActive) wrapperClass += ' disabled';
+
+                content += `<div class="${wrapperClass}" data-letter="${letter}" data-index="${index}"><div class="${classes}">${icon}<span class="flex-1">${formatText(optionText)}</span></div></div>`;
+                });
+                content += `</div>`;
+                
+                // Explanations: Hidden if Exam Mode is active or if no selection made
+                let explanationClasses = 'explanations-container space-y-3 mt-4 border-t border-gray-200 dark:border-gray-700 pt-4';
+                if (!selectedLetter || examModeActive) explanationClasses += ' hidden';
+                
+                content += `<div class="${explanationClasses}">`;
+                q.options.forEach(opt => {
+                const letter = opt.substring(0, 1);
+                if (q.explanations[letter]) {
+                    const isCorrect = (letter === q.correctAnswer);
+                    const explanationBorder = isCorrect ? 'border-l-4 border-green-500' : 'border-l-4 border-red-500';
+                    content += `<div class="explanation-item p-3 bg-gray-50 dark:bg-gray-700 rounded-lg ${explanationBorder}"><strong class="text-sm font-semibold text-gray-800 dark:text-gray-200">Explanation for ${letter}:</strong><p class="text-gray-700 dark:text-gray-300 mt-1 whitespace-pre-wrap">${formatText(q.explanations[letter])}</p></div>`;
+                }
+                });
+                content += `</div>`;
+                
+            } else if (q.type === 'Written') {
+                const { revealed } = questionState;
+                // Hide Show Answer button if Exam Mode Active
+                const btnClass = (revealed || examModeActive) ? 'hidden' : '';
+                
+                content += `<button class="show-answer-btn px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 ${btnClass}" data-index="${index}">Show Answer</button>`;
+                
+                if (examModeActive) {
+                    content += `<div class="p-4 bg-yellow-50 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-700 rounded-lg text-sm text-yellow-800 dark:text-yellow-200">يتم إخفاء الإجابة النموذجية في وضع الامتحان.</div>`;
+                }
+                
+                content += `<div class="answer-container ${revealed ? '' : 'hidden'}"><h4 class="text-md font-semibold text-gray-800 dark:text-gray-200 mb-2">Full Answer</h4><div class="p-4 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg whitespace-pre-wrap text-gray-800 dark:text-gray-200">${formatText(q.answer)}</div></div>`;
+            }
+            
+            content += `<div class="mt-6 border-t border-dashed border-gray-300 dark:border-gray-600 pt-4 space-y-4"><div><h5 class="font-semibold text-gray-700 dark:text-gray-300">Topic Summary</h5><p class="text-gray-600 dark:text-gray-400 text-sm mt-1 whitespace-pre-wrap">${formatText(q.topicSummary)}</p></div><div><h5 class="font-semibold text-gray-700 dark:text-gray-300">Lesson</h5><p class="text-gray-600 dark:text-gray-400 text-sm mt-1 whitespace-pre-wrap">${formatText(q.lesson)}</p></div></div>`;
+            card.innerHTML = content;
+            quizContainer.appendChild(card);
+            });
+        }
+
+        function addListeners() {
+            document.querySelectorAll('.option').forEach(opt => {
+            const index = parseInt(opt.dataset.index, 10);
+            const question = quizData[index];
+            opt.addEventListener('click', (e) => handleOptionClick(e, question, index));
+            });
+            document.querySelectorAll('.show-answer-btn').forEach(btn => {
+            const index = parseInt(btn.dataset.index, 10);
+            btn.addEventListener('click', (e) => handleShowAnswer(e, index));
+            });
+        }
+
+        renderQuiz();
+        addListeners();
+        if (finishBtn) finishBtn.addEventListener('click', calculateAndShowResults);
+        if (resetBtn) resetBtn.addEventListener('click', resetQuiz);
+      } catch (e) {
+        console.error("Quiz Error:", e);
+        document.body.innerHTML = '<div style="color:red; text-align:center; padding:20px;">حدث خطأ أثناء تحميل الكويز. يرجى التأكد من الملف والمحاولة مرة أخرى.<br><br>Error: ' + e.message + '</div>';
+      }
+    });
+  </script>
+</body>
+</html>
+  

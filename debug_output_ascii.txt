@@ -1,0 +1,20 @@
+DEBUG: Lesson Match: [
+  'Lesson: Chapter 1: European Capitals',
+  'Chapter 1: European Capitals',
+  index: 0,
+  input: 'Lesson: Chapter 1: European Capitals',
+  groups: undefined
+]
+DEBUG: Set Lesson: Chapter 1: European Capitals
+DEBUG: Lesson Match: [
+  '**Lesson:** Math Basics (with colon)',
+  '** Math Basics (with colon)',
+  index: 0,
+  input: '**Lesson:** Math Basics (with colon)',
+  groups: undefined
+]
+DEBUG: Set Lesson: ** Math Basics (with colon)
+Parsed questions count: 0
+Question 1 Lesson: undefined
+Question 2 Lesson: undefined
+FAILURE: Parsing failed.
