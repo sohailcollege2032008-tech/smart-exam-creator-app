@@ -32,7 +32,101 @@ import {
 import { PdfSplitterDialog } from '@/components/pdf-splitter-dialog';
 import { Scissors } from 'lucide-react';
 import { FileUploader } from './file-uploader';
-import { uploadToGeminiServer, getFileStatus } from '@/app/actions/upload-manager';
+import { initGeminiUpload, uploadGeminiChunk, getFileStatus } from '@/app/actions/upload-manager';
+// ... other imports
+
+// ... inside Processor component ...
+
+// --- ROBUST CHUNKED UPLOAD HELPER ---
+const uploadFileInChunks = async (file: File, typeLabel: string) => {
+    const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB Chunks (Safe for Server Actions)
+    const totalBytes = file.size;
+    let offset = 0;
+
+    setLoadingMessage(`Initializing upload for ${typeLabel}: ${file.name}...`);
+    const initRes = await initGeminiUpload(apiKey, file.type || 'application/octet-stream', file.name, totalBytes);
+
+    if (!initRes.success || !initRes.uploadUrl) {
+        throw new Error(`Init failed: ${initRes.error}`);
+    }
+
+    const uploadUrl = initRes.uploadUrl;
+    let fileResult = null;
+
+    // Chunk Loop
+    while (offset < totalBytes) {
+        const end = Math.min(offset + CHUNK_SIZE, totalBytes);
+        const isLast = end >= totalBytes;
+        const chunkBlob = file.slice(offset, end);
+
+        setLoadingMessage(`Uploading ${typeLabel}: ${file.name} (${Math.round((offset / totalBytes) * 100)}%)...`);
+
+        const chunkFormData = new FormData();
+        chunkFormData.append('chunk', chunkBlob);
+
+        const chunkRes = await uploadGeminiChunk(uploadUrl, chunkFormData, offset, isLast);
+
+        if (!chunkRes.success) {
+            throw new Error(`Chunk failed: ${chunkRes.error}`);
+        }
+
+        if (isLast && chunkRes.file) {
+            fileResult = chunkRes.file;
+        }
+
+        offset = end;
+    }
+
+    if (!fileResult) throw new Error("Upload finished but no file result returned.");
+
+    // Poll for Active Status
+    let state = fileResult.state;
+    if (state === FileState.PROCESSING) {
+        setLoadingMessage(`Processing ${file.name}...`);
+        let attempts = 0;
+        while (state === FileState.PROCESSING && attempts < 40) {
+            await new Promise(r => setTimeout(r, 2000));
+            const status = await getFileStatus(apiKey, fileResult.name);
+            if (status.success && status.state) state = status.state;
+            else if (!status.success) console.warn("Poll warning:", status.error);
+
+            if (state === FileState.FAILED) throw new Error("Processing failed on Google Server");
+            attempts++;
+        }
+    }
+    return { mimeType: fileResult.mimeType, fileUri: fileResult.uri, name: fileResult.name };
+};
+
+// A. Upload Question Files
+for (let i = 0; i < solverQuestionsFiles.length; i++) {
+    let file = solverQuestionsFiles[i];
+    if (autoCompress && file.size > 12 * 1024 * 1024) {
+        try {
+            setLoadingMessage(`Compressing Question: ${file.name}...`);
+            if (file.type === 'application/pdf') file = await compressPDF(file, () => { });
+            else if (file.type.startsWith('image/')) file = await compressImage(file);
+        } catch (e) { console.error(e); }
+    }
+    const fileData = await uploadFileInChunks(file, "Questions");
+    fileParts.push({ fileData });
+}
+
+// B. Upload Reference Files
+for (let i = 0; i < solverReferenceFiles.length; i++) {
+    let file = solverReferenceFiles[i];
+    if (autoCompress && file.size > 12 * 1024 * 1024) {
+        try {
+            setLoadingMessage(`Compressing Ref: ${file.name}...`);
+            if (file.type === 'application/pdf') file = await compressPDF(file, () => { });
+            else if (file.type.startsWith('image/')) file = await compressImage(file);
+        } catch (e) { console.error(e); }
+    }
+    const fileData = await uploadFileInChunks(file, "Reference");
+    fileParts.push({ fileData });
+}
+
+// C. Solve
+// ... (Rest of logic remains same)
 import { processYoutubeVideo } from '@/app/actions/youtube-manager';
 import { saveJob } from '@/app/actions/job-manager';
 import { BatchResult } from '@/lib/types';
@@ -153,6 +247,65 @@ export function Processor({ apiKey, setApiKey, onOutputChange, onJobNameChange }
     const [splitterMode, setSplitterMode] = useState<'none' | 'primary' | 'reference'>('none');
 
     // --- Handlers ---
+
+    // --- ROBUST CHUNKED UPLOAD HELPER ---
+    const uploadFileInChunks = async (file: File, typeLabel: string) => {
+        const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB Chunks (Safe for Server Actions)
+        const totalBytes = file.size;
+        let offset = 0;
+
+        setLoadingMessage(`Initializing upload for ${typeLabel}: ${file.name}...`);
+        const initRes = await initGeminiUpload(apiKey, file.type || 'application/octet-stream', file.name, totalBytes);
+
+        if (!initRes.success || !initRes.uploadUrl) {
+            throw new Error(`Init failed: ${initRes.error}`);
+        }
+
+        const uploadUrl = initRes.uploadUrl;
+        let fileResult = null;
+
+        // Chunk Loop
+        while (offset < totalBytes) {
+            const end = Math.min(offset + CHUNK_SIZE, totalBytes);
+            const isLast = end >= totalBytes;
+            const chunkBlob = file.slice(offset, end);
+
+            setLoadingMessage(`Uploading ${typeLabel}: ${file.name} (${Math.round((offset / totalBytes) * 100)}%)...`);
+
+            const chunkFormData = new FormData();
+            chunkFormData.append('chunk', chunkBlob);
+
+            const chunkRes = await uploadGeminiChunk(uploadUrl, chunkFormData, offset, isLast);
+
+            if (!chunkRes.success) {
+                throw new Error(`Chunk failed: ${chunkRes.error}`);
+            }
+
+            if (isLast && chunkRes.file) {
+                fileResult = chunkRes.file;
+            }
+
+            offset = end;
+        }
+
+        if (!fileResult) throw new Error("Upload finished but no file result returned.");
+
+        // Poll for Active Status
+        let state = fileResult.state;
+        if (state === FileState.PROCESSING) {
+            setLoadingMessage(`Processing ${file.name} (Waiting for Google)...`);
+            let attempts = 0;
+            while (state === FileState.PROCESSING && attempts < 40) { // 80s polling
+                await new Promise(r => setTimeout(r, 2000));
+                const status = await getFileStatus(apiKey, fileResult.name);
+                if (status.success && status.state) state = status.state;
+
+                if (state === FileState.FAILED) throw new Error("Processing failed on Google Server");
+                attempts++;
+            }
+        }
+        return { mimeType: fileResult.mimeType, fileUri: fileResult.uri, name: fileResult.name };
+    };
 
     const handleSplitComplete = (files: { file: File; topic: string; originalName: string }[]) => {
         console.log("Splitting complete, received files:", files.length, "Current Mode:", mode, "Splitter Mode:", splitterMode);
@@ -395,18 +548,17 @@ export function Processor({ apiKey, setApiKey, onOutputChange, onJobNameChange }
 
 
                     // Upload
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    const uploadResult = await uploadToGeminiServer(formData, apiKey);
-
-                    if (!uploadResult.success || !uploadResult.fileUri || !uploadResult.mimeType) {
-                        setBatchResults(prev => prev.map((r, idx) => idx === resultIndex ? { ...r, status: 'error', error: uploadResult.error || 'Upload failed' } : r));
+                    let uploadResult;
+                    try {
+                        uploadResult = await uploadFileInChunks(file, "Batch File");
+                    } catch (e: any) {
+                        setBatchResults(prev => prev.map((r, idx) => idx === resultIndex ? { ...r, status: 'error', error: e.message || 'Upload failed' } : r));
                         continue;
                     }
 
                     // Generate
                     const filePart = {
-                        fileData: { mimeType: uploadResult.mimeType!, fileUri: uploadResult.fileUri }
+                        fileData: { mimeType: uploadResult.mimeType, fileUri: uploadResult.fileUri }
                     };
 
                     const generationInstruction = isBatchMode && selectedFiles.length > 0
@@ -461,33 +613,11 @@ export function Processor({ apiKey, setApiKey, onOutputChange, onJobNameChange }
                     }
                     // -------------------------------
 
-                    setLoadingMessage(`Uploading ${file.name} (${i + 1}/${selectedFiles.length})...`);
-                    const formData = new FormData();
-                    formData.append('file', file);
-                    const uploadResult = await uploadToGeminiServer(formData, apiKey);
-
-                    if (!uploadResult.success || !uploadResult.fileUri || !uploadResult.mimeType || !uploadResult.name) {
-                        throw new Error(`Failed to upload ${file.name}: ${uploadResult.error}`);
-                    }
-
-                    // Client-side Polling for State
-                    let currentState = uploadResult.state;
-                    if (currentState === FileState.PROCESSING) {
-                        setLoadingMessage(`Processing ${file.name} (Waiting for Google)...`);
-                        let attempts = 0;
-                        while (currentState === FileState.PROCESSING && attempts < 40) { // 40 * 2s = 80s max
-                            await new Promise(r => setTimeout(r, 2000));
-                            const statusRes = await getFileStatus(apiKey, uploadResult.name);
-                            if (statusRes.success && statusRes.state) {
-                                currentState = statusRes.state;
-                                if (currentState === FileState.FAILED) throw new Error("File processing failed by Google AI.");
-                            }
-                            attempts++;
-                        }
-                    }
+                    // Chunked Upload
+                    const uploadResult = await uploadFileInChunks(file, `File ${i + 1}/${selectedFiles.length}`);
 
                     fileParts.push({
-                        fileData: { mimeType: uploadResult.mimeType!, fileUri: uploadResult.fileUri }
+                        fileData: { mimeType: uploadResult.mimeType, fileUri: uploadResult.fileUri }
                     });
                 }
 
@@ -614,40 +744,6 @@ export function Processor({ apiKey, setApiKey, onOutputChange, onJobNameChange }
         try {
             const fileParts = [];
 
-            // --- RESOURCE EFFICIENT UPLOAD HELPER ---
-            const uploadWithPolling = async (file: File, typeLabel: string) => {
-                setLoadingMessage(`Uploading ${typeLabel}: ${file.name}...`);
-                const formData = new FormData();
-                formData.append('file', file);
-
-                // Client-side Timeout Race (60s limit for the upload request itself)
-                const uploadPromise = uploadToGeminiServer(formData, apiKey);
-                const timeoutPromise = new Promise<{ success: boolean, error?: string }>((_, reject) =>
-                    setTimeout(() => reject(new Error("Network timeout: Upload took too long")), 60000)
-                );
-
-                const res = await Promise.race([uploadPromise, timeoutPromise]);
-
-                if (!res.success || !res.fileUri || !res.mimeType || !res.name) {
-                    throw new Error(`Failed to upload ${file.name}: ${res.error}`);
-                }
-
-                // Poll for Active Status
-                let state = res.state;
-                if (state === FileState.PROCESSING) {
-                    setLoadingMessage(`Processing ${file.name}...`);
-                    let attempts = 0;
-                    while (state === FileState.PROCESSING && attempts < 40) {
-                        await new Promise(r => setTimeout(r, 2000));
-                        const status = await getFileStatus(apiKey, res.name);
-                        if (status.success && status.state) state = status.state;
-                        if (state === FileState.FAILED) throw new Error("Processing failed on Google Server");
-                        attempts++;
-                    }
-                }
-                return { mimeType: res.mimeType, fileUri: res.fileUri };
-            };
-
             // A. Upload Question Files
             for (let i = 0; i < solverQuestionsFiles.length; i++) {
                 let file = solverQuestionsFiles[i];
@@ -660,7 +756,7 @@ export function Processor({ apiKey, setApiKey, onOutputChange, onJobNameChange }
                     } catch (e) { console.error(e); }
                 }
 
-                const fileData = await uploadWithPolling(file, "Questions");
+                const fileData = await uploadFileInChunks(file, "Questions");
                 fileParts.push({ fileData });
             }
 
@@ -676,7 +772,7 @@ export function Processor({ apiKey, setApiKey, onOutputChange, onJobNameChange }
                     } catch (e) { console.error(e); }
                 }
 
-                const fileData = await uploadWithPolling(file, "Reference");
+                const fileData = await uploadFileInChunks(file, "Reference");
                 fileParts.push({ fileData });
             }
 
