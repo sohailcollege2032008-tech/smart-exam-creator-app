@@ -41,12 +41,11 @@ export async function uploadToGeminiServer(formData: FormData, apiKey: string) {
         return { success: false, error: "No file provided in FormData." };
     }
 
-    // Connectivity Check
+    // Connectivity Check with explicit timeout
     try {
         await fetch('https://generativelanguage.googleapis.com', { method: 'HEAD', signal: AbortSignal.timeout(5000) });
     } catch (netErr: any) {
-        console.error("Connectivity Check Failed:", netErr);
-        // We continue anyway, but log it.
+        console.error("Connectivity Check Failed (Non-critical):", netErr.message);
     }
 
     // Server-side initialization of File Manager
@@ -57,7 +56,7 @@ export async function uploadToGeminiServer(formData: FormData, apiKey: string) {
         let finalMimeType = file.type || 'application/octet-stream';
         let displayName = file.name;
 
-        // DOCX Handling: Convert to Text
+        // DOCX Processing blocked
         if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
             return { success: false, error: "DOCX processing is currently disabled." };
         } else {
@@ -65,46 +64,46 @@ export async function uploadToGeminiServer(formData: FormData, apiKey: string) {
             tempPath = await saveToTemp(file);
         }
 
-        // Check if file exists
-        if (!fs.existsSync(tempPath)) {
-            throw new Error(`Temp file creation failed at ${tempPath}`);
-        }
+        if (!fs.existsSync(tempPath)) throw new Error(`Temp file creation failed at ${tempPath}`);
 
-        console.log(`Starting upload for ${displayName} (${finalMimeType}) from ${tempPath}`);
+        console.log(`Starting upload for ${displayName} (${finalMimeType})`);
 
-        // 2. Upload with Retry Logic
+        // 2. Upload with Retry Logic & Timeouts
         let uploadResult;
         let uploadAttempts = 0;
-        const maxUploadRetries = 3;
+        const maxUploadRetries = 2; // Reduced retries to fail faster
 
         while (uploadAttempts < maxUploadRetries) {
             try {
-                uploadResult = await fileManager.uploadFile(tempPath, {
+                // RACE: File Manager Upload vs Timeout Promise
+                const uploadPromise = fileManager.uploadFile(tempPath, {
                     mimeType: finalMimeType,
                     displayName: displayName,
                 });
+
+                const timeoutPromise = new Promise<never>((_, reject) =>
+                    setTimeout(() => reject(new Error("Upload timed out (Google SDK)")), 45000)
+                );
+
+                uploadResult = await Promise.race([uploadPromise, timeoutPromise]);
                 break; // Success
             } catch (err: any) {
                 console.warn(`Upload attempt ${uploadAttempts + 1} failed: ${err.message}`);
-                console.warn(`Cause: ${err.cause}`);
-
                 uploadAttempts++;
                 if (uploadAttempts >= maxUploadRetries) {
-                    throw new Error(`Upload failed: ${err.message} ${err.cause ? `(Cause: ${(err.cause as any)?.code || err.cause})` : ''}`);
+                    throw new Error(`Upload failed: ${err.message}`);
                 }
-                // Backoff wait
-                await new Promise(resolve => setTimeout(resolve, 2000 * uploadAttempts));
+                await new Promise(resolve => setTimeout(resolve, 2000));
             }
         }
 
         if (!uploadResult) {
-            // Fallback: Try RAW REST API Upload if SDK fails (often due to undici/stream issues)
+            // Fallback: RAW REST API Upload
             console.warn("SDK Upload failed. Attempting REST API Fallback...");
             try {
                 uploadResult = await uploadFileFallback(apiKey, tempPath, finalMimeType, displayName);
             } catch (fallbackErr: any) {
-                console.error("Fallback Upload also failed:", fallbackErr);
-                throw new Error(`Upload failed after retries and fallback: ${fallbackErr.message}`);
+                throw new Error(`Upload failed after retries: ${fallbackErr.message}`);
             }
         }
 
@@ -112,22 +111,26 @@ export async function uploadToGeminiServer(formData: FormData, apiKey: string) {
         let fileState = uploadResult.file.state;
         let name = uploadResult.file.name;
 
-        console.log(`File uploaded successfully: ${fileUri}, State: ${fileState}`);
+        console.log(`File uploaded: ${fileUri}, State: ${fileState}`);
 
-        // 3. Poll until Active
+        // 3. Poll until Active (Max 30s)
         let attempts = 0;
-        const maxPollAttempts = 30; // 30 * 2s = 60s
+        const maxPollAttempts = 15; // 15 * 2s = 30s max wait for processing
 
         while (fileState === FileState.PROCESSING && attempts < maxPollAttempts) {
             await new Promise(resolve => setTimeout(resolve, 2000));
-
-            const fileObj = await fileManager.getFile(name);
-            fileState = fileObj.state;
-
-            if (fileState === FileState.FAILED) {
-                throw new Error("File processing failed by Google (State: FAILED).");
+            try {
+                const fileObj = await fileManager.getFile(name);
+                fileState = fileObj.state;
+                if (fileState === FileState.FAILED) throw new Error("File processing failed by Google.");
+            } catch (pollErr) {
+                // Ignore transient poll errors
             }
             attempts++;
+        }
+
+        if (fileState === FileState.PROCESSING) {
+            console.warn("File is still processing, but returning URI anyway (client can handle wait).");
         }
 
         return {
@@ -139,10 +142,8 @@ export async function uploadToGeminiServer(formData: FormData, apiKey: string) {
 
     } catch (e: any) {
         console.error("Upload error details:", e);
-        // Serialize error for client
         const errorMessage = e.message || "Unknown Error";
-        const errorCause = e.cause ? JSON.stringify(e.cause, Object.getOwnPropertyNames(e.cause)) : '';
-        return { success: false, error: `${errorMessage} ${errorCause ? `| Cause: ${errorCause}` : ''}` };
+        return { success: false, error: errorMessage };
     } finally {
         if (tempPath) {
             try {

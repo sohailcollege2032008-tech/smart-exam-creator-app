@@ -18,38 +18,54 @@ export default function Home() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
-    // Load persisted state
+    // Load persisted state from LocalStorage AND Supabase
     const savedKey = localStorage.getItem('gemini_api_key');
     if (savedKey) setApiKey(savedKey);
 
     const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
     if (savedTheme) {
       setTheme(savedTheme);
-      if (savedTheme === 'dark') {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
+      document.documentElement.classList.toggle('dark', savedTheme === 'dark');
     } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
       setTheme('dark');
       document.documentElement.classList.add('dark');
     }
+
+    // Sync with Server (Supabase)
+    import('@/app/actions/user-settings').then(({ getUserSettings }) => {
+      getUserSettings().then(res => {
+        if (res.success && res.settings) {
+          if (res.settings.gemini_api_key) {
+            setApiKey(res.settings.gemini_api_key);
+            localStorage.setItem('gemini_api_key', res.settings.gemini_api_key);
+          }
+          if (res.settings.theme) {
+            setTheme(res.settings.theme);
+            localStorage.setItem('theme', res.settings.theme);
+            document.documentElement.classList.toggle('dark', res.settings.theme === 'dark');
+          }
+        }
+      });
+    });
   }, []);
 
-  const handleSetApiKey = (key: string) => {
+  const handleSetApiKey = async (key: string) => {
     setApiKey(key);
     localStorage.setItem('gemini_api_key', key);
+    // Sync to Server
+    const { updateUserSettings } = await import('@/app/actions/user-settings');
+    await updateUserSettings({ gemini_api_key: key });
   };
 
-  const toggleTheme = () => {
+  const toggleTheme = async () => {
     const newTheme = theme === 'light' ? 'dark' : 'light';
     setTheme(newTheme);
     localStorage.setItem('theme', newTheme);
-    if (newTheme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
+    document.documentElement.classList.toggle('dark', newTheme === 'dark');
+
+    // Sync to Server
+    const { updateUserSettings } = await import('@/app/actions/user-settings');
+    await updateUserSettings({ theme: newTheme });
   };
 
   const handleLoadJobForExporter = (text: string, title?: string) => {
