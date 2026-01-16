@@ -614,62 +614,70 @@ export function Processor({ apiKey, setApiKey, onOutputChange, onJobNameChange }
         try {
             const fileParts = [];
 
-            // A. Upload Question Files
-            for (let i = 0; i < solverQuestionsFiles.length; i++) {
-                let file = solverQuestionsFiles[i]; // Mutable
-
-                // --- SMART COMPRESSION LOGIC (SOLVER QUESTIONS) ---
-                if (autoCompress && file.size > 12 * 1024 * 1024) {
-                    try {
-                        setLoadingMessage(`Compressing Question: ${file.name} (Original: ${(file.size / 1024 / 1024).toFixed(1)}MB)...`);
-                        if (file.type === 'application/pdf') {
-                            file = await compressPDF(file, (curr, total) => {
-                                setLoadingMessage(`Compressing Question PDF Page ${curr}/${total}...`);
-                            });
-                        } else if (file.type.startsWith('image/')) {
-                            file = await compressImage(file);
-                        }
-                    } catch (compErr) {
-                        console.error("Question compression failed", compErr);
-                    }
-                }
-                // ---------------------------------------
-
-                setLoadingMessage(`Uploading Questions: ${file.name}...`);
+            // --- RESOURCE EFFICIENT UPLOAD HELPER ---
+            const uploadWithPolling = async (file: File, typeLabel: string) => {
+                setLoadingMessage(`Uploading ${typeLabel}: ${file.name}...`);
                 const formData = new FormData();
                 formData.append('file', file);
-                const res = await uploadToGeminiServer(formData, apiKey);
-                if (!res.success || !res.fileUri || !res.mimeType) throw new Error(`Failed: ${res.error}`);
-                fileParts.push({ fileData: { mimeType: res.mimeType!, fileUri: res.fileUri } });
+
+                // Client-side Timeout Race (60s limit for the upload request itself)
+                const uploadPromise = uploadToGeminiServer(formData, apiKey);
+                const timeoutPromise = new Promise<{ success: boolean, error?: string }>((_, reject) =>
+                    setTimeout(() => reject(new Error("Network timeout: Upload took too long")), 60000)
+                );
+
+                const res = await Promise.race([uploadPromise, timeoutPromise]);
+
+                if (!res.success || !res.fileUri || !res.mimeType || !res.name) {
+                    throw new Error(`Failed to upload ${file.name}: ${res.error}`);
+                }
+
+                // Poll for Active Status
+                let state = res.state;
+                if (state === FileState.PROCESSING) {
+                    setLoadingMessage(`Processing ${file.name}...`);
+                    let attempts = 0;
+                    while (state === FileState.PROCESSING && attempts < 40) {
+                        await new Promise(r => setTimeout(r, 2000));
+                        const status = await getFileStatus(apiKey, res.name);
+                        if (status.success && status.state) state = status.state;
+                        if (state === FileState.FAILED) throw new Error("Processing failed on Google Server");
+                        attempts++;
+                    }
+                }
+                return { mimeType: res.mimeType, fileUri: res.fileUri };
+            };
+
+            // A. Upload Question Files
+            for (let i = 0; i < solverQuestionsFiles.length; i++) {
+                let file = solverQuestionsFiles[i];
+                // --- Compression Logic (Questions) ---
+                if (autoCompress && file.size > 12 * 1024 * 1024) {
+                    try {
+                        setLoadingMessage(`Compressing Question: ${file.name}...`);
+                        if (file.type === 'application/pdf') file = await compressPDF(file, () => { });
+                        else if (file.type.startsWith('image/')) file = await compressImage(file);
+                    } catch (e) { console.error(e); }
+                }
+
+                const fileData = await uploadWithPolling(file, "Questions");
+                fileParts.push({ fileData });
             }
 
             // B. Upload Reference Files
             for (let i = 0; i < solverReferenceFiles.length; i++) {
-                let file = solverReferenceFiles[i]; // Mutable
-
-                // --- SMART COMPRESSION LOGIC (SOLVER REFERENCE) ---
+                let file = solverReferenceFiles[i];
+                // --- Compression Logic (Reference) ---
                 if (autoCompress && file.size > 12 * 1024 * 1024) {
                     try {
-                        setLoadingMessage(`Compressing Ref: ${file.name} (Original: ${(file.size / 1024 / 1024).toFixed(1)}MB)...`);
-                        if (file.type === 'application/pdf') {
-                            file = await compressPDF(file, (curr, total) => {
-                                setLoadingMessage(`Compressing Ref PDF Page ${curr}/${total}...`);
-                            });
-                        } else if (file.type.startsWith('image/')) {
-                            file = await compressImage(file);
-                        }
-                    } catch (compErr) {
-                        console.error("Ref compression failed", compErr);
-                    }
+                        setLoadingMessage(`Compressing Ref: ${file.name}...`);
+                        if (file.type === 'application/pdf') file = await compressPDF(file, () => { });
+                        else if (file.type.startsWith('image/')) file = await compressImage(file);
+                    } catch (e) { console.error(e); }
                 }
-                // ---------------------------------------
 
-                setLoadingMessage(`Uploading Reference: ${file.name}...`);
-                const formData = new FormData();
-                formData.append('file', file);
-                const res = await uploadToGeminiServer(formData, apiKey);
-                if (!res.success || !res.fileUri || !res.mimeType) throw new Error(`Failed: ${res.error}`);
-                fileParts.push({ fileData: { mimeType: res.mimeType!, fileUri: res.fileUri } });
+                const fileData = await uploadWithPolling(file, "Reference");
+                fileParts.push({ fileData });
             }
 
             // C. Solve
