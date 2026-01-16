@@ -10,7 +10,8 @@ import dns from 'node:dns';
 dns.setDefaultResultOrder('ipv4first');
 
 // Allow this Server Action to run for up to 60 seconds (Vercel Hobby Limit)
-export const maxDuration = 60;
+// export const maxDuration = 60; // REMOVED: Causes build error in Server Actions
+
 
 // Helper to save File object to temp disk (needed for GoogleAIFileManager input path)
 // Helper to save File object to temp disk (needed for GoogleAIFileManager input path)
