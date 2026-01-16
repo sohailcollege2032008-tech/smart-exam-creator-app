@@ -8,7 +8,9 @@ import dns from 'node:dns';
 
 // FORCE IPv4: Fixes specific Node.js fetch failures with Google APIs
 dns.setDefaultResultOrder('ipv4first');
-// import mammoth from 'mammoth';
+
+// Allow this Server Action to run for up to 60 seconds (Vercel Hobby Limit)
+export const maxDuration = 60;
 
 // Helper to save File object to temp disk (needed for GoogleAIFileManager input path)
 // Helper to save File object to temp disk (needed for GoogleAIFileManager input path)
@@ -81,8 +83,9 @@ export async function uploadToGeminiServer(formData: FormData, apiKey: string) {
                     displayName: displayName,
                 });
 
+                // Increased timeout to 5 minutes (300000ms) for slow connections
                 const timeoutPromise = new Promise<never>((_, reject) =>
-                    setTimeout(() => reject(new Error("Upload timed out (Google SDK)")), 45000)
+                    setTimeout(() => reject(new Error("Upload timed out (Google SDK)")), 300000)
                 );
 
                 uploadResult = await Promise.race([uploadPromise, timeoutPromise]);
