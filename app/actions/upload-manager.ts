@@ -116,31 +116,12 @@ export async function uploadToGeminiServer(formData: FormData, apiKey: string) {
 
         console.log(`File uploaded: ${fileUri}, State: ${fileState}`);
 
-        // 3. Poll until Active (Max 30s)
-        let attempts = 0;
-        const maxPollAttempts = 15; // 15 * 2s = 30s max wait for processing
-
-        while (fileState === FileState.PROCESSING && attempts < maxPollAttempts) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            try {
-                const fileObj = await fileManager.getFile(name);
-                fileState = fileObj.state;
-                if (fileState === FileState.FAILED) throw new Error("File processing failed by Google.");
-            } catch (pollErr) {
-                // Ignore transient poll errors
-            }
-            attempts++;
-        }
-
-        if (fileState === FileState.PROCESSING) {
-            console.warn("File is still processing, but returning URI anyway (client can handle wait).");
-        }
-
         return {
             success: true,
             fileUri: fileUri,
             mimeType: finalMimeType,
-            name: name
+            name: name,
+            state: fileState // Return initial state
         };
 
     } catch (e: any) {
@@ -153,6 +134,22 @@ export async function uploadToGeminiServer(formData: FormData, apiKey: string) {
                 await unlink(tempPath);
             } catch (e) { /* ignore */ }
         }
+    }
+}
+
+// New Action: Poll Status
+export async function getFileStatus(apiKey: string, name: string) {
+    // Ensure IPv4 is used to prevent Node 18+ IPv6 fetch failures
+    try {
+        dns.setDefaultResultOrder('ipv4first');
+    } catch (e) { /* ignore if not supported */ }
+
+    try {
+        const fileManager = new GoogleAIFileManager(apiKey);
+        const fileObj = await fileManager.getFile(name);
+        return { success: true, state: fileObj.state };
+    } catch (e: any) {
+        return { success: false, error: e.message };
     }
 }
 

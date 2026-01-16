@@ -32,11 +32,12 @@ import {
 import { PdfSplitterDialog } from '@/components/pdf-splitter-dialog';
 import { Scissors } from 'lucide-react';
 import { FileUploader } from './file-uploader';
-import { uploadToGeminiServer } from '@/app/actions/upload-manager';
+import { uploadToGeminiServer, getFileStatus } from '@/app/actions/upload-manager';
 import { processYoutubeVideo } from '@/app/actions/youtube-manager';
 import { saveJob } from '@/app/actions/job-manager';
 import { BatchResult } from '@/lib/types';
 import { compressImage, compressPDF } from '@/lib/compression';
+import { FileState } from "@google/generative-ai/server";
 
 interface ProcessorProps {
     apiKey: string;
@@ -464,7 +465,27 @@ export function Processor({ apiKey, setApiKey, onOutputChange, onJobNameChange }
                     const formData = new FormData();
                     formData.append('file', file);
                     const uploadResult = await uploadToGeminiServer(formData, apiKey);
-                    if (!uploadResult.success || !uploadResult.fileUri || !uploadResult.mimeType) throw new Error(`Failed to upload ${file.name}: ${uploadResult.error}`);
+
+                    if (!uploadResult.success || !uploadResult.fileUri || !uploadResult.mimeType || !uploadResult.name) {
+                        throw new Error(`Failed to upload ${file.name}: ${uploadResult.error}`);
+                    }
+
+                    // Client-side Polling for State
+                    let currentState = uploadResult.state;
+                    if (currentState === FileState.PROCESSING) {
+                        setLoadingMessage(`Processing ${file.name} (Waiting for Google)...`);
+                        let attempts = 0;
+                        while (currentState === FileState.PROCESSING && attempts < 40) { // 40 * 2s = 80s max
+                            await new Promise(r => setTimeout(r, 2000));
+                            const statusRes = await getFileStatus(apiKey, uploadResult.name);
+                            if (statusRes.success && statusRes.state) {
+                                currentState = statusRes.state;
+                                if (currentState === FileState.FAILED) throw new Error("File processing failed by Google AI.");
+                            }
+                            attempts++;
+                        }
+                    }
+
                     fileParts.push({
                         fileData: { mimeType: uploadResult.mimeType!, fileUri: uploadResult.fileUri }
                     });
