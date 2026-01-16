@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 import { Processor } from '@/components/processor';
 import { Exporter } from '@/components/exporter';
 import { SavedJobs } from '@/components/saved-jobs';
-import { UserAuthButton } from '@/components/user-auth-button';
 import { LayoutDashboard, FileOutput, Moon, Sun, Laptop, FolderCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -80,8 +79,8 @@ export default function Home() {
             className={cn(
               "flex items-center gap-2 px-4 md:px-6 py-2 rounded-lg text-sm font-semibold transition-all duration-200",
               activeTab === 'processor'
-                ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm"
-                : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-300"
+              ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm"
+              : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-300"
             )}
           >
             <LayoutDashboard className="w-4 h-4" />
@@ -92,8 +91,8 @@ export default function Home() {
             className={cn(
               "flex items-center gap-2 px-4 md:px-6 py-2 rounded-lg text-sm font-semibold transition-all duration-200",
               activeTab === 'saved-jobs'
-                ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm"
-                : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-300"
+              ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm"
+              : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-300"
             )}
           >
             <FolderCheck className="w-4 h-4" />
@@ -104,8 +103,8 @@ export default function Home() {
             className={cn(
               "flex items-center gap-2 px-4 md:px-6 py-2 rounded-lg text-sm font-semibold transition-all duration-200",
               activeTab === 'exporter'
-                ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm"
-                : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-300"
+              ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm"
+              : "text-slate-500 hover:text-slate-900 dark:hover:text-slate-300"
             )}
           >
             <FileOutput className="w-4 h-4" />
@@ -115,8 +114,6 @@ export default function Home() {
 
         {/* Right Actions */}
         <div className="flex items-center gap-4">
-          <UserAuthButton />
-
           {/* API Key Status Indicator */}
           <div className={cn(
             "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border",

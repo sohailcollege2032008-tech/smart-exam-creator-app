@@ -1,9 +1,14 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# specific
+.ignored_temp/
+!check-models.js
+!copy-wasm.js
+
 # dependencies
 /node_modules
 /.pnp
-.pnp.*
+pnp.*
 .yarn/*
 !.yarn/patches
 !.yarn/plugins

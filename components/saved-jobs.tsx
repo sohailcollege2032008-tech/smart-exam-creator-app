@@ -34,12 +34,16 @@ export function SavedJobs({ onLoadToExporter }: SavedJobsProps) {
         try {
             const res = await getJobs();
             if (res.success) {
-                setJobs(res.jobs);
+                setJobs(res.jobs || []);
             } else {
                 setError(res.error || 'Failed to fetch jobs');
             }
         } catch (err: any) {
-            setError(err.message);
+            if (err.message && err.message.includes('Unauthorized')) {
+                setError('Unauthorized');
+            } else {
+                setError(err.message);
+            }
         } finally {
             setIsLoading(false);
         }
@@ -390,9 +394,24 @@ export function SavedJobs({ onLoadToExporter }: SavedJobsProps) {
                         <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
                     </div>
                 ) : error ? (
-                    <div className="p-4 bg-red-50 text-red-600 rounded-lg border border-red-200">
-                        {error}
-                    </div>
+                    (typeof error === 'string' && error.includes('Unauthorized')) ? (
+                        <div className="flex-grow flex flex-col items-center justify-center p-12 text-center">
+                            <div className="bg-white dark:bg-slate-800 p-8 rounded-2xl shadow-lg border border-slate-200 dark:border-slate-700 max-w-md w-full">
+                                <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Login Required</h3>
+                                <p className="text-slate-600 dark:text-slate-400 mb-6">You need to be logged in to save and access your jobs.</p>
+                                <a
+                                    href="/login"
+                                    className="inline-flex justify-center items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 w-full transition-colors"
+                                >
+                                    Sign In / Sign Up
+                                </a>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="p-4 bg-red-50 text-red-600 rounded-lg border border-red-200">
+                            {error}
+                        </div>
+                    )
                 ) : jobs.length === 0 ? (
                     <div className="flex-grow flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50/50 dark:bg-slate-900/50 p-12">
                         <FileText className="w-16 h-16 mb-4 opacity-20" />
@@ -462,6 +481,6 @@ export function SavedJobs({ onLoadToExporter }: SavedJobsProps) {
                     </div>
                 )}
             </div>
-        </div>
+        </div >
     );
 }

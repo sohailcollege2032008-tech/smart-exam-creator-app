@@ -417,7 +417,7 @@ export function getSolverSystemPrompt(topic?: string, subjectType: SubjectType =
 
   // 5. Topic Filtering
   if (topic) {
-    base += `
+    overrides += `
     \n** IMPORTANT: TOPIC FILTERING ACTIVE **
     - The user specifies this document is about: "${topic}".
     - Ignore questions clearly unrelated to "${topic}" (e.g., from adjacent chapters).

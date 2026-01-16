@@ -1,6 +1,5 @@
 import { PDFDocument } from 'pdf-lib';
 
-
 /**
  * Compresses an image file by resizing and reducing quality via HTML Canvas.
  * Target: Max dimension 1500px, JPEG Quality 0.6
@@ -131,7 +130,7 @@ export async function compressPDF(file: File, onProgress?: (idx: number, total: 
         }
 
         const pdfBytes = await newPdfDoc.save();
-        return new File([pdfBytes], file.name, { type: 'application/pdf', lastModified: Date.now() });
+        return new File([pdfBytes as any], file.name as string, { type: 'application/pdf', lastModified: Date.now() });
 
     } catch (error) {
         console.error("PDF Compression failed:", error);

@@ -1,12 +1,7 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
-  experimental: {
-    serverActions: {
-      bodySizeLimit: '100mb', // Support large PDF/Image uploads
-    },
-  },
-  webpack: (config, { isServer }) => {
+const nextConfig: any = {
+  webpack: (config: any, { isServer }: any) => {
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
