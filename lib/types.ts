@@ -42,7 +42,7 @@ export interface Job {
         questionCount?: number; // Kept for backward compatibility
         mcqCount?: number;
         writtenCount?: number;
-        subjectType?: 'standard' | 'math';
-        explanationMode?: 'standard' | 'detailed'; // NEW
+        subjectType?: 'standard' | 'math' | 'medical' | 'engineering' | 'law' | 'language';
+        explanationMode?: 'standard' | 'deep' | 'simple' | 'concise' | 'detailed'; // NEW
     };
 }

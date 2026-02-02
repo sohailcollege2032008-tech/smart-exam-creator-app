@@ -26,7 +26,10 @@ export async function saveJob(job: Omit<Job, 'id' | 'createdAt'>): Promise<{ suc
             name: newJob.name,
             type: newJob.type,
             user_id: user.id,
-            payload: newJob
+            is_batch: newJob.isBatch || false,
+            data: newJob.data,
+            metadata: newJob.metadata,
+            batch_items: newJob.batchItems || []
         });
 
         if (error) throw error;
@@ -44,12 +47,21 @@ export async function getJobs(): Promise<{ success: boolean; jobs: Job[]; error?
 
         const { data, error } = await supabase
             .from('jobs')
-            .select('payload, created_at')
+            .select('*')
             .order('created_at', { ascending: false });
 
         if (error) throw error;
 
-        const jobs = data.map((row: any) => row.payload as Job);
+        const jobs: Job[] = data.map((row: any) => ({
+            id: row.id,
+            name: row.name,
+            type: row.type,
+            createdAt: row.created_at,
+            isBatch: row.is_batch,
+            data: row.data,
+            metadata: row.metadata,
+            batchItems: row.batch_items
+        }));
         return { success: true, jobs };
     } catch (error: any) {
         console.error('Failed to get jobs:', error);
@@ -74,14 +86,25 @@ export async function getJobById(id: string): Promise<{ success: boolean; job?: 
         const supabase = await createClient();
         const { data, error } = await supabase
             .from('jobs')
-            .select('payload')
+            .select('*')
             .eq('id', id)
             .single();
 
         if (error) throw error;
         if (!data) throw new Error('Job not found');
 
-        return { success: true, job: data.payload };
+        const job: Job = {
+            id: data.id,
+            name: data.name,
+            type: data.type,
+            createdAt: data.created_at,
+            isBatch: data.is_batch,
+            data: data.data,
+            metadata: data.metadata,
+            batchItems: data.batch_items
+        };
+
+        return { success: true, job };
     } catch (error: any) {
         console.error('Failed to get job:', error);
         return { success: false, error: error.message };
@@ -91,23 +114,20 @@ export async function getJobById(id: string): Promise<{ success: boolean; job?: 
 export async function updateJob(id: string, updates: Partial<Job>): Promise<{ success: boolean; error?: string }> {
     try {
         const supabase = await createClient();
-        // Fetch existing to merge (since we store full payload)
-        const { data: existing, error: fetchError } = await supabase
-            .from('jobs')
-            .select('payload')
-            .eq('id', id)
-            .single();
 
-        if (fetchError) throw fetchError;
-
-        const updatedJob = { ...existing.payload, ...updates };
+        // Prepare updates mapping
+        const dbUpdates: any = {};
+        if (updates.name !== undefined) dbUpdates.name = updates.name;
+        if (updates.type !== undefined) dbUpdates.type = updates.type;
+        if (updates.isBatch !== undefined) dbUpdates.is_batch = updates.isBatch;
+        if (updates.data !== undefined) dbUpdates.data = updates.data;
+        if (updates.metadata !== undefined) dbUpdates.metadata = updates.metadata;
+        if (updates.batchItems !== undefined) dbUpdates.batch_items = updates.batchItems;
+        dbUpdates.updated_at = new Date().toISOString();
 
         const { error } = await supabase
             .from('jobs')
-            .update({
-                name: updatedJob.name, // update columns if name changed
-                payload: updatedJob
-            })
+            .update(dbUpdates)
             .eq('id', id);
 
         if (error) throw error;
@@ -121,39 +141,16 @@ export async function updateJob(id: string, updates: Partial<Job>): Promise<{ su
 
 export async function duplicateJob(id: string): Promise<{ success: boolean; newJob?: Job; error?: string }> {
     try {
-        const supabase = await createClient();
-        const { data: existing, error: fetchError } = await supabase
-            .from('jobs')
-            .select('payload')
-            .eq('id', id)
-            .single();
+        const res = await getJobById(id);
+        if (!res.success || !res.job) throw new Error(res.error || "Job not found");
 
-        if (fetchError) throw fetchError;
+        const existingJob = res.job;
+        const newJobName = `${existingJob.name} (Copy)`;
 
-        const existingJob = existing.payload;
-        const newId = crypto.randomUUID();
-        const newJob: Job = {
+        return saveJob({
             ...existingJob,
-            id: newId,
-            name: `${existingJob.name} (Copy)`,
-            createdAt: new Date().toISOString()
-        };
-
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error("User not found");
-
-        const { error } = await supabase.from('jobs').insert({
-            id: newId,
-            created_at: newJob.createdAt,
-            name: newJob.name,
-            type: newJob.type,
-            user_id: user.id,
-            payload: newJob
+            name: newJobName
         });
-
-        if (error) throw error;
-
-        return { success: true, newJob };
     } catch (error: any) {
         console.error('Failed to duplicate job:', error);
         return { success: false, error: error.message };

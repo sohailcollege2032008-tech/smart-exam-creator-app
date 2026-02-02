@@ -126,6 +126,23 @@ export function ApiKeyManager({ currentKey, onKeySelect, className }: ApiKeyMana
         }
     };
 
+    const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null);
+
+    // Sync internal selection with external currentKey
+    useEffect(() => {
+        if (currentKey) {
+            // 1. If we already have a selected ID and it matches the current key, keep it (stabilizes selection)
+            const currentMatch = keys.find(k => k.id === internalSelectedId);
+            if (currentMatch && currentMatch.key === currentKey) return;
+
+            // 2. Otherwise find the first match
+            const match = keys.find(k => k.key === currentKey);
+            if (match) setInternalSelectedId(match.id);
+        } else {
+            setInternalSelectedId(null);
+        }
+    }, [currentKey, keys, internalSelectedId]);
+
     return (
         <div className={cn("border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden", className)}>
             <button
@@ -219,13 +236,18 @@ export function ApiKeyManager({ currentKey, onKeySelect, className }: ApiKeyMana
                     {/* Keys List */}
                     <div className="space-y-2 max-h-[300px] overflow-y-auto">
                         {keys.map(keyData => {
-                            const isSelected = currentKey === keyData.key;
+                            const isSelected = keyData.id === internalSelectedId;
                             const totalUsage = Object.values(keyData.usage).reduce((a, b) => a + b, 0);
 
                             return (
                                 <div
                                     key={keyData.id}
-                                    onClick={() => onKeySelect(keyData.key)}
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        console.log("Selecting Key:", keyData.name);
+                                        setInternalSelectedId(keyData.id); // Force visual update immediately
+                                        onKeySelect(keyData.key);
+                                    }}
                                     className={cn(
                                         "p-3 rounded border transition-all cursor-pointer relative group",
                                         isSelected
